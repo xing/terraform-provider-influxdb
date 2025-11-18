@@ -114,10 +114,8 @@ func (p *InfluxDBProvider) Configure(ctx context.Context, req provider.Configure
 		return
 	}
 
-	// Create a new InfluxDB client
 	client := influxdb2.NewClient(url, token)
 
-	// Store client in provider data for use in data sources and resources
 	resp.DataSourceData = &ProviderData{
 		Client: client,
 		Org:    org,
