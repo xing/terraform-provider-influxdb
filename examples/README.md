@@ -6,27 +6,17 @@ This directory contains example Terraform configuration for testing your local I
 
 ### Start InfluxDB with Docker
 
-First, start a local InfluxDB instance using Docker:
+All configuration is centralized in the `.env` file. Start InfluxDB using the helper script:
 
 ```bash
-# Start InfluxDB container
-docker run -d \
-  --name influxdb \
-  -p 8086:8086 \
-  -e DOCKER_INFLUXDB_INIT_MODE=setup \
-  -e DOCKER_INFLUXDB_INIT_USERNAME=admin \
-  -e DOCKER_INFLUXDB_INIT_PASSWORD=password123 \
-  -e DOCKER_INFLUXDB_INIT_ORG=my-org \
-  -e DOCKER_INFLUXDB_INIT_BUCKET=my-bucket \
-  -e DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=my-super-secret-auth-token \
-  influxdb:2.7
+# Start InfluxDB with configuration from .env file
+./start-influxdb.sh
 
 # Verify it's running
 docker logs influxdb
 
-# Access InfluxDB UI at http://localhost:8086
-# Username: admin
-# Password: password123
+# Access InfluxDB UI (URL from .env file)
+echo "Access InfluxDB UI at: $INFLUXDB_URL"
 ```
 
 **Stop and cleanup:**
@@ -51,9 +41,19 @@ docker rm influxdb
    export TF_CLI_CONFIG_FILE=".terraformrc"
    ```
 
+3. **Generate terraform.tfvars from .env:**
+   ```bash
+   ./generate-tfvars.sh
+   ```
+
 ## Usage
 
 ```bash
+./generate-tfvars.sh
+
+# Skip terraform init when using dev_overrides
+# Plan the configuration (uses your local provider)
 terraform plan
+
 terraform apply
 ```
