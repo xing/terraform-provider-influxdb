@@ -23,7 +23,7 @@ echo "Access InfluxDB UI at: $INFLUXDB_URL"
 
 1. **Build your provider first:**
    ```bash
-   cd ../InfluxDBProvider
+   cd ..
    go build -o terraform-provider-influxdb
    ```
 
