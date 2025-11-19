@@ -211,7 +211,7 @@ func (r *TaskResource) Create(ctx context.Context, req resource.CreateRequest, r
 	orgsAPI := r.client.OrganizationsAPI()
 	org, err := orgsAPI.FindOrganizationByName(ctx, orgName)
 	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to find organization '%s', got error: %s", orgName, err))
+		resp.Diagnostics.AddError("Create - Client Error", fmt.Sprintf("Unable to find organization '%s', got error: %s", orgName, err))
 		return
 	}
 
@@ -253,7 +253,7 @@ func (r *TaskResource) Create(ctx context.Context, req resource.CreateRequest, r
 	tasksAPI := r.client.TasksAPI()
 	createdTask, err := tasksAPI.CreateTask(ctx, task)
 	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create task, got error: %s", err))
+		resp.Diagnostics.AddError("Create - Client Error", fmt.Sprintf("Unable to create task, got error: %s", err))
 		return
 	}
 
@@ -279,7 +279,7 @@ func (r *TaskResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 	tasksAPI := r.client.TasksAPI()
 	task, err := tasksAPI.GetTaskByID(ctx, data.ID.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read task, got error: %s", err))
+		resp.Diagnostics.AddError("Read - Client Error", fmt.Sprintf("Unable to read task, got error: %s", err))
 		return
 	}
 
@@ -290,7 +290,7 @@ func (r *TaskResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 	orgsAPI := r.client.OrganizationsAPI()
 	org, err := orgsAPI.FindOrganizationByID(ctx, task.OrgID)
 	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to find organization with ID '%s', got error: %s", task.OrgID, err))
+		resp.Diagnostics.AddError("Read - Client Error", fmt.Sprintf("Unable to find organization with ID '%s', got error: %s", task.OrgID, err))
 		return
 	}
 	data.Org = types.StringValue(org.Name)
@@ -354,7 +354,7 @@ func (r *TaskResource) Update(ctx context.Context, req resource.UpdateRequest, r
 	tasksAPI := r.client.TasksAPI()
 	updatedTask, err := tasksAPI.UpdateTask(ctx, task)
 	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update task, got error: %s", err))
+		resp.Diagnostics.AddError("Update - Client Error", fmt.Sprintf("Unable to update task, got error: %s", err))
 		return
 	}
 

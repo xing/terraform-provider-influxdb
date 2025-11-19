@@ -135,7 +135,7 @@ func (resource *BucketResource) Create(ctx context.Context, req resource.CreateR
 	orgsAPI := resource.client.OrganizationsAPI()
 	org, err := orgsAPI.FindOrganizationByName(ctx, orgName)
 	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to find organization '%s', got error: %s", orgName, err))
+		resp.Diagnostics.AddError("Create - Client Error", fmt.Sprintf("Unable to find organization '%s', got error: %s", orgName, err))
 		return
 	}
 
@@ -153,7 +153,7 @@ func (resource *BucketResource) Create(ctx context.Context, req resource.CreateR
 	bucketsAPI := resource.client.BucketsAPI()
 	createdBucket, err := bucketsAPI.CreateBucket(ctx, bucket)
 	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create bucket, got error: %s", err))
+		resp.Diagnostics.AddError("Create - Client Error", fmt.Sprintf("Unable to create bucket, got error: %s", err))
 		return
 	}
 
@@ -186,7 +186,7 @@ func (resource *BucketResource) Read(ctx context.Context, req resource.ReadReque
 	bucketsAPI := resource.client.BucketsAPI()
 	bucket, err := bucketsAPI.FindBucketByID(ctx, data.ID.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read bucket, got error: %s", err))
+		resp.Diagnostics.AddError("Read - Client Error", fmt.Sprintf("Unable to read bucket, got error: %s", err))
 		return
 	}
 
@@ -239,7 +239,7 @@ func (resource *BucketResource) Update(ctx context.Context, req resource.UpdateR
 	bucketsAPI := resource.client.BucketsAPI()
 	updatedBucket, err := bucketsAPI.UpdateBucket(ctx, bucket)
 	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update bucket, got error: %s", err))
+		resp.Diagnostics.AddError("Update - Client Error", fmt.Sprintf("Unable to update bucket, got error: %s", err))
 		return
 	}
 
@@ -269,7 +269,7 @@ func (r *BucketResource) Delete(ctx context.Context, req resource.DeleteRequest,
 	bucketsAPI := r.client.BucketsAPI()
 	err := bucketsAPI.DeleteBucket(ctx, &domain.Bucket{Id: data.ID.ValueStringPointer()})
 	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete bucket, got error: %s", err))
+		resp.Diagnostics.AddError("Delete - Client Error", fmt.Sprintf("Unable to delete bucket, got error: %s", err))
 		return
 	}
 }

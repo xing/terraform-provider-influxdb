@@ -71,7 +71,8 @@ type CheckAPI struct {
 }
 
 type CheckQuery struct {
-	Text string `json:"text"`
+	Text     string `json:"text"`
+	EditMode string `json:"editMode,omitempty"`
 }
 
 type CheckThreshold struct {
@@ -299,7 +300,7 @@ func (r *CheckResource) Create(ctx context.Context, req resource.CreateRequest, 
 	orgsAPI := r.client.OrganizationsAPI()
 	org, err := orgsAPI.FindOrganizationByName(ctx, orgName)
 	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to find organization '%s', got error: %s", orgName, err))
+		resp.Diagnostics.AddError("Create - Client Error", fmt.Sprintf("Unable to find organization '%s', got error: %s", orgName, err))
 		return
 	}
 
@@ -308,7 +309,8 @@ func (r *CheckResource) Create(ctx context.Context, req resource.CreateRequest, 
 		Name:  data.Name.ValueString(),
 		OrgID: *org.Id,
 		Query: CheckQuery{
-			Text: data.Query.ValueString(),
+			Text:     data.Query.ValueString(),
+			EditMode: "advanced",
 		},
 		Status: "active",
 		Every:  data.Every.ValueString(),
@@ -346,13 +348,13 @@ func (r *CheckResource) Create(ctx context.Context, req resource.CreateRequest, 
 	// Create check via HTTP API
 	respBody, err := r.makeHTTPRequest(ctx, "POST", "/api/v2/checks", checkPayload)
 	if err != nil {
-		resp.Diagnostics.AddError("HTTP Error", fmt.Sprintf("Unable to create check: %s", err))
+		resp.Diagnostics.AddError("Create - HTTP Error", fmt.Sprintf("Unable to create check: %s", err))
 		return
 	}
 
 	var createdCheck CheckAPI
 	if err := json.Unmarshal(respBody, &createdCheck); err != nil {
-		resp.Diagnostics.AddError("Parse Error", fmt.Sprintf("Unable to parse check response: %s", err))
+		resp.Diagnostics.AddError("Create - Parse Error", fmt.Sprintf("Unable to parse check response: %s", err))
 		return
 	}
 
@@ -378,13 +380,13 @@ func (r *CheckResource) Read(ctx context.Context, req resource.ReadRequest, resp
 	endpoint := fmt.Sprintf("/api/v2/checks/%s", data.ID.ValueString())
 	respBody, err := r.makeHTTPRequest(ctx, "GET", endpoint, nil)
 	if err != nil {
-		resp.Diagnostics.AddError("HTTP Error", fmt.Sprintf("Unable to read check: %s", err))
+		resp.Diagnostics.AddError("Read - HTTP Error", fmt.Sprintf("Unable to read check: %s", err))
 		return
 	}
 
 	var check CheckAPI
 	if err := json.Unmarshal(respBody, &check); err != nil {
-		resp.Diagnostics.AddError("Parse Error", fmt.Sprintf("Unable to parse check response: %s", err))
+		resp.Diagnostics.AddError("Read - Parse Error", fmt.Sprintf("Unable to parse check response: %s", err))
 		return
 	}
 
@@ -392,7 +394,7 @@ func (r *CheckResource) Read(ctx context.Context, req resource.ReadRequest, resp
 	orgsAPI := r.client.OrganizationsAPI()
 	org, err := orgsAPI.FindOrganizationByID(ctx, check.OrgID)
 	if err != nil {
-		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to find organization with ID '%s', got error: %s", check.OrgID, err))
+		resp.Diagnostics.AddError("Read - Client Error", fmt.Sprintf("Unable to find organization with ID '%s', got error: %s", check.OrgID, err))
 		return
 	}
 	data.Org = types.StringValue(org.Name)
@@ -419,7 +421,8 @@ func (r *CheckResource) Update(ctx context.Context, req resource.UpdateRequest, 
 		ID:   data.ID.ValueStringPointer(),
 		Name: data.Name.ValueString(),
 		Query: CheckQuery{
-			Text: data.Query.ValueString(),
+			Text:     data.Query.ValueString(),
+			EditMode: "advanced",
 		},
 		Status: data.Status.ValueString(),
 		Every:  data.Every.ValueString(),
@@ -449,13 +452,13 @@ func (r *CheckResource) Update(ctx context.Context, req resource.UpdateRequest, 
 	endpoint := fmt.Sprintf("/api/v2/checks/%s", data.ID.ValueString())
 	respBody, err := r.makeHTTPRequest(ctx, "PATCH", endpoint, checkPayload)
 	if err != nil {
-		resp.Diagnostics.AddError("HTTP Error", fmt.Sprintf("Unable to update check: %s", err))
+		resp.Diagnostics.AddError("Update - HTTP Error", fmt.Sprintf("Unable to update check: %s", err))
 		return
 	}
 
 	var updatedCheck CheckAPI
 	if err := json.Unmarshal(respBody, &updatedCheck); err != nil {
-		resp.Diagnostics.AddError("Parse Error", fmt.Sprintf("Unable to parse check response: %s", err))
+		resp.Diagnostics.AddError("Update - Parse Error", fmt.Sprintf("Unable to parse check response: %s", err))
 		return
 	}
 
@@ -485,7 +488,7 @@ func (r *CheckResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 			// Resource already deleted, consider this success
 			return
 		}
-		resp.Diagnostics.AddError("HTTP Error", fmt.Sprintf("Unable to delete check: %s", err))
+		resp.Diagnostics.AddError("Delete - HTTP Error", fmt.Sprintf("Unable to delete check: %s", err))
 		return
 	}
 }
