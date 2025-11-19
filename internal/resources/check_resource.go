@@ -360,10 +360,6 @@ func (r *CheckResource) Create(ctx context.Context, req resource.CreateRequest, 
 		checkPayload.StatusMessageTemplate = &template
 	}
 
-	// Debug: Print payload before sending
-	payloadJSON, _ := json.MarshalIndent(checkPayload, "", "  ")
-	resp.Diagnostics.AddWarning("Create - Payload Debug", fmt.Sprintf("Sending payload: %s", string(payloadJSON)))
-
 	// Create check via HTTP API
 	respBody, err := r.makeHTTPRequest(ctx, "POST", "/api/v2/checks", checkPayload)
 	if err != nil {
@@ -472,10 +468,6 @@ func (r *CheckResource) Update(ctx context.Context, req resource.UpdateRequest, 
 		template := data.StatusMessageTemplate.ValueString()
 		checkPayload.StatusMessageTemplate = &template
 	}
-
-	// Debug: Print payload before sending
-	payloadJSON, _ := json.MarshalIndent(checkPayload, "", "  ")
-	resp.Diagnostics.AddWarning("Update - Payload Debug", fmt.Sprintf("Sending payload: %s", string(payloadJSON)))
 
 	// Update check via HTTP API
 	endpoint := fmt.Sprintf("/api/v2/checks/%s", data.ID.ValueString())
