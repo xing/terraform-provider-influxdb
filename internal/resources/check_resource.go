@@ -350,12 +350,11 @@ func (r *CheckResource) Create(ctx context.Context, req resource.CreateRequest, 
 	if !data.Status.IsNull() {
 		checkPayload.Status = data.Status.ValueString()
 	}
-	if !data.Offset.IsNull() {
+	if !data.Offset.IsNull() && data.Offset.ValueString() != "" {
 		checkPayload.Offset = data.Offset.ValueString()
 	}
-	if !data.Type.IsNull() {
-		checkPayload.Type = data.Type.ValueString()
-	}
+	// Type is required, so always use the configured value
+	checkPayload.Type = data.Type.ValueString()
 	if !data.StatusMessageTemplate.IsNull() {
 		template := data.StatusMessageTemplate.ValueString()
 		checkPayload.StatusMessageTemplate = &template
@@ -445,7 +444,7 @@ func (r *CheckResource) Update(ctx context.Context, req resource.UpdateRequest, 
 		},
 		Status:     data.Status.ValueString(),
 		Every:      data.Every.ValueString(),
-		Offset:     data.Offset.ValueString(),
+		Offset:     "0s", // Default offset
 		Type:       data.Type.ValueString(),
 		Thresholds: make([]CheckThreshold, len(data.Thresholds)),
 	}
@@ -465,6 +464,9 @@ func (r *CheckResource) Update(ctx context.Context, req resource.UpdateRequest, 
 	if !data.Description.IsNull() {
 		desc := data.Description.ValueString()
 		checkPayload.Description = &desc
+	}
+	if !data.Offset.IsNull() && data.Offset.ValueString() != "" {
+		checkPayload.Offset = data.Offset.ValueString()
 	}
 	if !data.StatusMessageTemplate.IsNull() {
 		template := data.StatusMessageTemplate.ValueString()
