@@ -50,6 +50,24 @@ func (r *BucketResource) setRetentionSecondsFromRules(data *BucketResourceModel,
 	}
 }
 
+func (r *BucketResource) prepareRetentionRules(data *BucketResourceModel) []domain.RetentionRule {
+	retentionSeconds := int64(0) // Default to infinite retention
+	if !data.RetentionSeconds.IsNull() {
+		retentionSeconds = data.RetentionSeconds.ValueInt64()
+	}
+
+	return []domain.RetentionRule{{
+		EverySeconds: retentionSeconds,
+	}}
+}
+
+func (r *BucketResource) setDescriptionOnBucket(data *BucketResourceModel, bucket *domain.Bucket) {
+	if !data.Description.IsNull() {
+		desc := data.Description.ValueString()
+		bucket.Description = &desc
+	}
+}
+
 func (r *BucketResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_bucket"
 }
@@ -129,16 +147,7 @@ func (resource *BucketResource) Create(ctx context.Context, req resource.CreateR
 	}
 
 	// Prepare retention rules
-	var retentionRules []domain.RetentionRule
-	retentionSeconds := int64(0) // Default to infinite retention
-
-	if !data.RetentionSeconds.IsNull() {
-		retentionSeconds = data.RetentionSeconds.ValueInt64()
-	}
-
-	retentionRules = append(retentionRules, domain.RetentionRule{
-		EverySeconds: retentionSeconds,
-	})
+	retentionRules := resource.prepareRetentionRules(&data)
 
 	bucket := &domain.Bucket{
 		Name:           data.Name.ValueString(),
@@ -146,10 +155,7 @@ func (resource *BucketResource) Create(ctx context.Context, req resource.CreateR
 		RetentionRules: retentionRules,
 	}
 
-	if !data.Description.IsNull() {
-		desc := data.Description.ValueString()
-		bucket.Description = &desc
-	}
+	resource.setDescriptionOnBucket(&data, bucket)
 
 	bucketsAPI := resource.client.BucketsAPI()
 	createdBucket, err := bucketsAPI.CreateBucket(ctx, bucket)
@@ -226,16 +232,7 @@ func (resource *BucketResource) Update(ctx context.Context, req resource.UpdateR
 	}
 
 	// Prepare retention rules for update
-	var retentionRules []domain.RetentionRule
-	retentionSeconds := int64(0) // Default to infinite retention
-
-	if !data.RetentionSeconds.IsNull() {
-		retentionSeconds = data.RetentionSeconds.ValueInt64()
-	}
-
-	retentionRules = append(retentionRules, domain.RetentionRule{
-		EverySeconds: retentionSeconds,
-	})
+	retentionRules := resource.prepareRetentionRules(&data)
 
 	// Update bucket
 	bucket := &domain.Bucket{
@@ -244,10 +241,7 @@ func (resource *BucketResource) Update(ctx context.Context, req resource.UpdateR
 		RetentionRules: retentionRules,
 	}
 
-	if !data.Description.IsNull() {
-		desc := data.Description.ValueString()
-		bucket.Description = &desc
-	}
+	resource.setDescriptionOnBucket(&data, bucket)
 
 	bucketsAPI := resource.client.BucketsAPI()
 	updatedBucket, err := bucketsAPI.UpdateBucket(ctx, bucket)
