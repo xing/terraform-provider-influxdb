@@ -35,22 +35,26 @@ type CheckResource struct {
 
 // CheckResourceModel describes the resource data model.
 type CheckResourceModel struct {
-	ID                    types.String  `tfsdk:"id"`
-	Name                  types.String  `tfsdk:"name"`
-	Org                   types.String  `tfsdk:"org"`
-	Description           types.String  `tfsdk:"description"`
-	Query                 types.String  `tfsdk:"query"`
-	Status                types.String  `tfsdk:"status"`
-	Every                 types.String  `tfsdk:"every"`
-	Offset                types.String  `tfsdk:"offset"`
-	StatusMessageTemplate types.String  `tfsdk:"status_message_template"`
-	Type                  types.String  `tfsdk:"type"`
-	ThresholdType         types.String  `tfsdk:"threshold_type"`
-	ThresholdValue        types.Float64 `tfsdk:"threshold_value"`
-	ThresholdLevel        types.String  `tfsdk:"threshold_level"`
-	ThresholdAllValues    types.Bool    `tfsdk:"threshold_all_values"`
-	CreatedAt             types.String  `tfsdk:"created_at"`
-	UpdatedAt             types.String  `tfsdk:"updated_at"`
+	ID                    types.String     `tfsdk:"id"`
+	Name                  types.String     `tfsdk:"name"`
+	Org                   types.String     `tfsdk:"org"`
+	Description           types.String     `tfsdk:"description"`
+	Query                 types.String     `tfsdk:"query"`
+	Status                types.String     `tfsdk:"status"`
+	Every                 types.String     `tfsdk:"every"`
+	Offset                types.String     `tfsdk:"offset"`
+	StatusMessageTemplate types.String     `tfsdk:"status_message_template"`
+	Type                  types.String     `tfsdk:"type"`
+	Thresholds            []ThresholdModel `tfsdk:"thresholds"`
+	CreatedAt             types.String     `tfsdk:"created_at"`
+	UpdatedAt             types.String     `tfsdk:"updated_at"`
+}
+
+type ThresholdModel struct {
+	Type      types.String  `tfsdk:"type"`
+	Value     types.Float64 `tfsdk:"value"`
+	Level     types.String  `tfsdk:"level"`
+	AllValues types.Bool    `tfsdk:"all_values"`
 }
 
 // CheckAPI represents the structure used for InfluxDB Check API calls
@@ -71,8 +75,7 @@ type CheckAPI struct {
 }
 
 type CheckQuery struct {
-	Text     string `json:"text"`
-	EditMode string `json:"editMode,omitempty"`
+	Text string `json:"text"`
 }
 
 type CheckThreshold struct {
@@ -139,23 +142,6 @@ func (r *CheckResource) Schema(ctx context.Context, req resource.SchemaRequest, 
 				Computed:            true,
 				MarkdownDescription: "Check type. Defaults to 'threshold'.",
 			},
-			"threshold_type": schema.StringAttribute{
-				Required:            true,
-				MarkdownDescription: "Threshold comparison type (greater, lesser, equal, etc.)",
-			},
-			"threshold_value": schema.Float64Attribute{
-				Required:            true,
-				MarkdownDescription: "Threshold value to compare against",
-			},
-			"threshold_level": schema.StringAttribute{
-				Required:            true,
-				MarkdownDescription: "Alert level (CRIT, WARN, INFO, OK)",
-			},
-			"threshold_all_values": schema.BoolAttribute{
-				Optional:            true,
-				Computed:            true,
-				MarkdownDescription: "Whether to apply threshold to all values. Defaults to false.",
-			},
 			"created_at": schema.StringAttribute{
 				Computed:            true,
 				MarkdownDescription: "Check creation timestamp",
@@ -163,6 +149,32 @@ func (r *CheckResource) Schema(ctx context.Context, req resource.SchemaRequest, 
 			"updated_at": schema.StringAttribute{
 				Computed:            true,
 				MarkdownDescription: "Check last update timestamp",
+			},
+		},
+		Blocks: map[string]schema.Block{
+			"thresholds": schema.ListNestedBlock{
+				MarkdownDescription: "Threshold definitions for the check",
+				NestedObject: schema.NestedBlockObject{
+					Attributes: map[string]schema.Attribute{
+						"type": schema.StringAttribute{
+							Required:            true,
+							MarkdownDescription: "Threshold comparison type (greater, lesser, equal, etc.)",
+						},
+						"value": schema.Float64Attribute{
+							Required:            true,
+							MarkdownDescription: "Threshold value to compare against",
+						},
+						"level": schema.StringAttribute{
+							Required:            true,
+							MarkdownDescription: "Alert level (CRIT, WARN, INFO, OK)",
+						},
+						"all_values": schema.BoolAttribute{
+							Optional:            true,
+							Computed:            true,
+							MarkdownDescription: "Whether to apply threshold to all values. Defaults to false.",
+						},
+					},
+				},
 			},
 		},
 	}
@@ -254,16 +266,18 @@ func (r *CheckResource) setComputedFields(data *CheckResourceModel, check *Check
 		data.StatusMessageTemplate = types.StringNull()
 	}
 
-	// Set threshold fields from first threshold
-	if len(check.Thresholds) > 0 {
-		threshold := check.Thresholds[0]
-		data.ThresholdType = types.StringValue(threshold.Type)
-		data.ThresholdValue = types.Float64Value(threshold.Value)
-		data.ThresholdLevel = types.StringValue(threshold.Level)
+	// Set thresholds from API response
+	data.Thresholds = make([]ThresholdModel, len(check.Thresholds))
+	for i, threshold := range check.Thresholds {
+		allValues := false
 		if threshold.AllValues != nil {
-			data.ThresholdAllValues = types.BoolValue(*threshold.AllValues)
-		} else {
-			data.ThresholdAllValues = types.BoolValue(false)
+			allValues = *threshold.AllValues
+		}
+		data.Thresholds[i] = ThresholdModel{
+			Type:      types.StringValue(threshold.Type),
+			Value:     types.Float64Value(threshold.Value),
+			Level:     types.StringValue(threshold.Level),
+			AllValues: types.BoolValue(allValues),
 		}
 	}
 
@@ -309,21 +323,24 @@ func (r *CheckResource) Create(ctx context.Context, req resource.CreateRequest, 
 		Name:  data.Name.ValueString(),
 		OrgID: *org.Id,
 		Query: CheckQuery{
-			Text:     data.Query.ValueString(),
-			EditMode: "advanced",
+			Text: data.Query.ValueString(),
 		},
-		Status: "active",
-		Every:  data.Every.ValueString(),
-		Offset: "0s",
-		Type:   "threshold",
-		Thresholds: []CheckThreshold{
-			{
-				Type:      data.ThresholdType.ValueString(),
-				Value:     data.ThresholdValue.ValueFloat64(),
-				Level:     data.ThresholdLevel.ValueString(),
-				AllValues: func() *bool { b := data.ThresholdAllValues.ValueBool(); return &b }(),
-			},
-		},
+		Status:     "active",
+		Every:      data.Every.ValueString(),
+		Offset:     "0s",
+		Type:       "threshold",
+		Thresholds: make([]CheckThreshold, len(data.Thresholds)),
+	}
+
+	// Build thresholds array
+	for i, threshold := range data.Thresholds {
+		allValues := threshold.AllValues.ValueBool()
+		checkPayload.Thresholds[i] = CheckThreshold{
+			Type:      threshold.Type.ValueString(),
+			Value:     threshold.Value.ValueFloat64(),
+			Level:     threshold.Level.ValueString(),
+			AllValues: &allValues,
+		}
 	}
 
 	// Set optional fields
@@ -421,21 +438,24 @@ func (r *CheckResource) Update(ctx context.Context, req resource.UpdateRequest, 
 		ID:   data.ID.ValueStringPointer(),
 		Name: data.Name.ValueString(),
 		Query: CheckQuery{
-			Text:     data.Query.ValueString(),
-			EditMode: "advanced",
+			Text: data.Query.ValueString(),
 		},
-		Status: data.Status.ValueString(),
-		Every:  data.Every.ValueString(),
-		Offset: data.Offset.ValueString(),
-		Type:   data.Type.ValueString(),
-		Thresholds: []CheckThreshold{
-			{
-				Type:      data.ThresholdType.ValueString(),
-				Value:     data.ThresholdValue.ValueFloat64(),
-				Level:     data.ThresholdLevel.ValueString(),
-				AllValues: func() *bool { b := data.ThresholdAllValues.ValueBool(); return &b }(),
-			},
-		},
+		Status:     data.Status.ValueString(),
+		Every:      data.Every.ValueString(),
+		Offset:     data.Offset.ValueString(),
+		Type:       "threshold",
+		Thresholds: make([]CheckThreshold, len(data.Thresholds)),
+	}
+
+	// Build thresholds array
+	for i, threshold := range data.Thresholds {
+		allValues := threshold.AllValues.ValueBool()
+		checkPayload.Thresholds[i] = CheckThreshold{
+			Type:      threshold.Type.ValueString(),
+			Value:     threshold.Value.ValueFloat64(),
+			Level:     threshold.Level.ValueString(),
+			AllValues: &allValues,
+		}
 	}
 
 	// Set optional fields

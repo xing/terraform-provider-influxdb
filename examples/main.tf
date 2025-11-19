@@ -68,7 +68,7 @@ resource "influxdb_task" "example_cron" {
   cron        = "0 */6 * * *"  # Every 6 hours
   status      = "active"
 }
-  
+
 # Example check for monitoring bucket data
 resource "influxdb_check" "high_cpu_usage" {
   name        = "terraform-high-cpu-check"
@@ -81,12 +81,15 @@ resource "influxdb_check" "high_cpu_usage" {
       |> aggregateWindow(every: 1m, fn: mean, createEmpty: false)
       |> yield(name: "mean")
   EOT
-  every               = "1m"
-  threshold_type      = "greater"
-  threshold_value     = 80.0
-  threshold_level     = "WARN"
-  threshold_all_values = false
-  status              = "active"
+  every  = "1m"
+  status = "active"
+
+  thresholds {
+    type       = "greater"
+    value      = 80.0
+    level      = "WARN"
+    all_values = false
+  }
 }
 
 # Example critical check with different threshold
@@ -102,10 +105,13 @@ resource "influxdb_check" "critical_memory_usage" {
       |> yield(name: "max")
   EOT
   every                   = "5m"
-  threshold_type          = "greater"
-  threshold_value         = 95.0
-  threshold_level         = "CRIT"
-  threshold_all_values    = false
   status_message_template = "Memory usage is critical: $${r._value}%"
   status                  = "active"
+
+  thresholds {
+    type       = "greater"
+    value      = 95.0
+    level      = "CRIT"
+    all_values = false
+  }
 }
