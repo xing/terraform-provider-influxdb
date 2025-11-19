@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
+	"github.com/new-work/influxdb-provider/internal/common"
 	"github.com/new-work/influxdb-provider/internal/resources"
 )
 
@@ -118,14 +119,14 @@ func (p *InfluxDBProvider) Configure(ctx context.Context, req provider.Configure
 	client := influxdb2.NewClient(url, token)
 
 	// Store client in provider data for use in data sources and resources
-	resp.DataSourceData = &resources.ProviderData{
+	resp.DataSourceData = &common.ProviderData{
 		Client: client,
 		Org:    org,
 		Bucket: bucket,
 		Token:  token,
 		URL:    url,
 	}
-	resp.ResourceData = &resources.ProviderData{
+	resp.ResourceData = &common.ProviderData{
 		Client: client,
 		Org:    org,
 		Bucket: bucket,

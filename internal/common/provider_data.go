@@ -1,4 +1,4 @@
-package resources
+package common
 
 import (
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"

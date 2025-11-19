@@ -14,6 +14,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
+
+	"github.com/new-work/influxdb-provider/internal/common"
 )
 
 // Ensure provider defined types fully satisfy framework interfaces.
@@ -185,7 +187,7 @@ func (r *CheckResource) Configure(ctx context.Context, req resource.ConfigureReq
 		return
 	}
 
-	providerData, ok := req.ProviderData.(*ProviderData)
+	providerData, ok := req.ProviderData.(*common.ProviderData)
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Resource Configure Type",
