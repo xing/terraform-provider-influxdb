@@ -259,10 +259,8 @@ func (r *CheckResource) setComputedFields(data *CheckResourceModel, check *Check
 	data.Offset = types.StringValue(check.Offset)
 	data.Type = types.StringValue(check.Type)
 
-	if check.StatusMessageTemplate != nil {
+	if check.StatusMessageTemplate != nil && *check.StatusMessageTemplate != "" {
 		data.StatusMessageTemplate = types.StringValue(*check.StatusMessageTemplate)
-	} else {
-		data.StatusMessageTemplate = types.StringNull()
 	}
 
 	// Set thresholds from API response
