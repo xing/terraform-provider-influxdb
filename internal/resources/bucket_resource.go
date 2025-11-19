@@ -35,10 +35,11 @@ type BucketResource struct {
 
 // BucketResourceModel describes the resource data model.
 type BucketResourceModel struct {
-	ID          types.String `tfsdk:"id"`
-	Name        types.String `tfsdk:"name"`
-	Org         types.String `tfsdk:"org"`
-	Description types.String `tfsdk:"description"`
+	ID               types.String `tfsdk:"id"`
+	Name             types.String `tfsdk:"name"`
+	Org              types.String `tfsdk:"org"`
+	Description      types.String `tfsdk:"description"`
+	RetentionSeconds types.Int64  `tfsdk:"retention_seconds"`
 }
 
 func (r *BucketResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -66,6 +67,10 @@ func (r *BucketResource) Schema(ctx context.Context, req resource.SchemaRequest,
 			"description": schema.StringAttribute{
 				Optional:            true,
 				MarkdownDescription: "Bucket description",
+			},
+			"retention_seconds": schema.Int64Attribute{
+				Optional:            true,
+				MarkdownDescription: "Data retention period in seconds. 0 means infinite retention. Defaults to 0 (infinite).",
 			},
 		},
 	}
@@ -114,10 +119,22 @@ func (r *BucketResource) Create(ctx context.Context, req resource.CreateRequest,
 		return
 	}
 
-	// Create bucket
+	// Prepare retention rules
+	var retentionRules []domain.RetentionRule
+	retentionSeconds := int64(0) // Default to infinite retention
+
+	if !data.RetentionSeconds.IsNull() {
+		retentionSeconds = data.RetentionSeconds.ValueInt64()
+	}
+
+	retentionRules = append(retentionRules, domain.RetentionRule{
+		EverySeconds: retentionSeconds,
+	})
+
 	bucket := &domain.Bucket{
-		Name:  data.Name.ValueString(),
-		OrgID: org.Id,
+		Name:           data.Name.ValueString(),
+		OrgID:          org.Id,
+		RetentionRules: retentionRules,
 	}
 
 	if !data.Description.IsNull() {
@@ -138,6 +155,11 @@ func (r *BucketResource) Create(ctx context.Context, req resource.CreateRequest,
 	data.Org = types.StringValue(orgName) // Keep the original organization name/identifier that was used in config
 	if createdBucket.Description != nil {
 		data.Description = types.StringValue(*createdBucket.Description)
+	}
+	if len(createdBucket.RetentionRules) > 0 {
+		data.RetentionSeconds = types.Int64Value(createdBucket.RetentionRules[0].EverySeconds)
+	} else {
+		data.RetentionSeconds = types.Int64Value(0) // Default to infinite
 	}
 
 	setDiags := resp.State.Set(ctx, &data)
@@ -179,6 +201,13 @@ func (r *BucketResource) Read(ctx context.Context, req resource.ReadRequest, res
 		data.Description = types.StringNull()
 	}
 
+	// Read retention policy
+	if len(bucket.RetentionRules) > 0 {
+		data.RetentionSeconds = types.Int64Value(bucket.RetentionRules[0].EverySeconds)
+	} else {
+		data.RetentionSeconds = types.Int64Value(0) // Default to infinite
+	}
+
 	readSetDiags := resp.State.Set(ctx, &data)
 	resp.Diagnostics.Append(readSetDiags...)
 }
@@ -193,10 +222,23 @@ func (r *BucketResource) Update(ctx context.Context, req resource.UpdateRequest,
 		return
 	}
 
+	// Prepare retention rules for update
+	var retentionRules []domain.RetentionRule
+	retentionSeconds := int64(0) // Default to infinite retention
+	
+	if !data.RetentionSeconds.IsNull() {
+		retentionSeconds = data.RetentionSeconds.ValueInt64()
+	}
+	
+	retentionRules = append(retentionRules, domain.RetentionRule{
+		EverySeconds: retentionSeconds,
+	})
+
 	// Update bucket
 	bucket := &domain.Bucket{
-		Id:   data.ID.ValueStringPointer(),
-		Name: data.Name.ValueString(),
+		Id:             data.ID.ValueStringPointer(),
+		Name:           data.Name.ValueString(),
+		RetentionRules: retentionRules,
 	}
 
 	if !data.Description.IsNull() {
@@ -215,6 +257,13 @@ func (r *BucketResource) Update(ctx context.Context, req resource.UpdateRequest,
 	data.Name = types.StringValue(updatedBucket.Name)
 	if updatedBucket.Description != nil {
 		data.Description = types.StringValue(*updatedBucket.Description)
+	}
+	
+	// Update retention policy
+	if len(updatedBucket.RetentionRules) > 0 {
+		data.RetentionSeconds = types.Int64Value(updatedBucket.RetentionRules[0].EverySeconds)
+	} else {
+		data.RetentionSeconds = types.Int64Value(0) // Default to infinite
 	}
 
 	updateSetDiags := resp.State.Set(ctx, &data)
