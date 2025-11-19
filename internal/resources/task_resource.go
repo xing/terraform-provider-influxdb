@@ -3,6 +3,7 @@ package resources
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -41,6 +42,38 @@ type TaskResourceModel struct {
 	Offset      types.String `tfsdk:"offset"`
 	CreatedAt   types.String `tfsdk:"created_at"`
 	UpdatedAt   types.String `tfsdk:"updated_at"`
+}
+
+func (r *TaskResource) stripOptionTaskLine(flux string) string {
+	// Find and remove the option task pattern at the beginning
+	if strings.Contains(flux, "option task = {") {
+		// Find the end of the option task declaration
+		start := strings.Index(flux, "option task = {")
+		if start != -1 {
+			// Find the matching closing brace
+			braceCount := 0
+			end := start
+			for i := start; i < len(flux); i++ {
+				if flux[i] == '{' {
+					braceCount++
+				} else if flux[i] == '}' {
+					braceCount--
+					if braceCount == 0 {
+						end = i + 1
+						break
+					}
+				}
+			}
+
+			// Remove the option task part and any following space
+			remaining := flux[end:]
+			remaining = strings.TrimPrefix(remaining, " ")
+
+			return strings.TrimSpace(remaining)
+		}
+	}
+
+	return flux
 }
 
 func (r *TaskResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -284,9 +317,6 @@ func (r *TaskResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 		return
 	}
 
-	// Update data from API response
-	data.Flux = types.StringValue(task.Flux)
-
 	// Resolve organization ID to name for consistency
 	orgsAPI := r.client.OrganizationsAPI()
 	org, err := orgsAPI.FindOrganizationByID(ctx, task.OrgID)
@@ -296,8 +326,11 @@ func (r *TaskResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 	}
 	data.Org = types.StringValue(org.Name)
 
-	// Set computed fields
+	// Update all fields from API response
 	r.setComputedFields(&data, task)
+
+	// Handle flux field specially to strip InfluxDB's automatic option task line
+	data.Flux = types.StringValue(r.stripOptionTaskLine(task.Flux))
 
 	readSetDiags := resp.State.Set(ctx, &data)
 	resp.Diagnostics.Append(readSetDiags...)
@@ -305,27 +338,76 @@ func (r *TaskResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 
 func (r *TaskResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var data TaskResourceModel
+	var state TaskResourceModel
 
-	// Read Terraform plan data into the model
+	// Read Terraform plan data (new values) into the model
 	diags := req.Plan.Get(ctx, &data)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
+	// Read current state data (to get the ID and other computed fields)
+	stateDiags := req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(stateDiags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Use the ID from state (computed fields are not in plan)
+	data.ID = state.ID
+
 	// Validate scheduling
 	if !r.validateScheduling(&data, &resp.Diagnostics) {
 		return
 	}
 
-	// Prepare task for update
-	task := &domain.Task{
-		Id:   data.ID.ValueString(),
-		Name: data.Name.ValueString(),
-		Flux: data.Flux.ValueString(),
+	// Get the current task to retrieve OrgID
+	tasksAPI := r.client.TasksAPI()
+
+	taskID := data.ID.ValueString()
+
+	currentTask, err := tasksAPI.GetTaskByID(ctx, taskID)
+	if err != nil {
+		resp.Diagnostics.AddError("Update - Client Error", fmt.Sprintf("Unable to read current task, got error: %s", err))
+		return
 	}
 
-	// Set optional description
+	// For the flux field, we need to preserve InfluxDB's option task structure
+	// but update the actual query content. We'll use the current task's flux
+	// but replace the stripped content with our new content
+	var updatedFlux string
+	if strings.Contains(currentTask.Flux, "option task = {") {
+		// Find where the actual flux query starts (after the option task line)
+		start := strings.Index(currentTask.Flux, "option task = {")
+		braceCount := 0
+		end := start
+		for i := start; i < len(currentTask.Flux); i++ {
+			if currentTask.Flux[i] == '{' {
+				braceCount++
+			} else if currentTask.Flux[i] == '}' {
+				braceCount--
+				if braceCount == 0 {
+					end = i + 1
+					break
+				}
+			}
+		}
+
+		// Replace the content after the option task with our new flux
+		optionPart := currentTask.Flux[:end]
+		updatedFlux = optionPart + " " + data.Flux.ValueString()
+	} else {
+		updatedFlux = data.Flux.ValueString()
+	}
+
+	// Prepare task for update with required OrgID
+	task := &domain.Task{
+		Id:    taskID,
+		Name:  data.Name.ValueString(),
+		Flux:  updatedFlux,
+		OrgID: currentTask.OrgID, // Include OrgID from current task
+	} // Set optional description
 	if !data.Description.IsNull() {
 		desc := data.Description.ValueString()
 		task.Description = &desc
@@ -351,16 +433,28 @@ func (r *TaskResource) Update(ctx context.Context, req resource.UpdateRequest, r
 		task.Offset = &offset
 	}
 
-	// Update task
-	tasksAPI := r.client.TasksAPI()
+	// Update task - first let's try with a more complete task object
+	// Copy all fields from currentTask and then override with new values
+	task.CreatedAt = currentTask.CreatedAt
+	task.UpdatedAt = currentTask.UpdatedAt
+
 	updatedTask, err := tasksAPI.UpdateTask(ctx, task)
 	if err != nil {
 		resp.Diagnostics.AddError("Update - Client Error", fmt.Sprintf("Unable to update task, got error: %s", err))
 		return
 	}
 
-	// Update data from API response
-	data.Flux = types.StringValue(updatedTask.Flux)
+	// Resolve organization ID to name for consistency (like in Read method)
+	orgsAPI := r.client.OrganizationsAPI()
+	org, err := orgsAPI.FindOrganizationByID(ctx, updatedTask.OrgID)
+	if err != nil {
+		resp.Diagnostics.AddError("Update - Client Error", fmt.Sprintf("Unable to find organization with ID '%s', got error: %s", updatedTask.OrgID, err))
+		return
+	}
+	data.Org = types.StringValue(org.Name)
+
+	// Update data from API response, but keep the original Flux from plan to avoid formatting differences
+	// data.Flux should remain as it was in the plan (data already has the planned Flux value)
 	r.setComputedFields(&data, updatedTask)
 
 	updateSetDiags := resp.State.Set(ctx, &data)
