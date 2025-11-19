@@ -122,11 +122,15 @@ func (p *InfluxDBProvider) Configure(ctx context.Context, req provider.Configure
 		Client: client,
 		Org:    org,
 		Bucket: bucket,
+		Token:  token,
+		URL:    url,
 	}
 	resp.ResourceData = &resources.ProviderData{
 		Client: client,
 		Org:    org,
 		Bucket: bucket,
+		Token:  token,
+		URL:    url,
 	}
 }
 
@@ -134,6 +138,7 @@ func (p *InfluxDBProvider) Resources(ctx context.Context) []func() resource.Reso
 	return []func() resource.Resource{
 		resources.NewBucketResource,
 		resources.NewTaskResource,
+		resources.NewCheckResource,
 	}
 }
 

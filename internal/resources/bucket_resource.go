@@ -20,13 +20,6 @@ func NewBucketResource() resource.Resource {
 	return &BucketResource{}
 }
 
-// ProviderData contains the client and configuration for resources and data sources
-type ProviderData struct {
-	Client influxdb2.Client
-	Org    string
-	Bucket string
-}
-
 // BucketResource defines the resource implementation.
 type BucketResource struct {
 	client influxdb2.Client

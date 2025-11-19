@@ -68,3 +68,44 @@ resource "influxdb_task" "example_cron" {
   cron        = "0 */6 * * *"  # Every 6 hours
   status      = "active"
 }
+  
+# Example check for monitoring bucket data
+resource "influxdb_check" "high_cpu_usage" {
+  name        = "terraform-high-cpu-check"
+  description = "Monitor for high CPU usage in terraform-example-bucket"
+  query       = <<-EOT
+    from(bucket: "terraform-example-bucket")
+      |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+      |> filter(fn: (r) => r._measurement == "cpu")
+      |> filter(fn: (r) => r._field == "usage_percent")
+      |> aggregateWindow(every: 1m, fn: mean, createEmpty: false)
+      |> yield(name: "mean")
+  EOT
+  every               = "1m"
+  threshold_type      = "greater"
+  threshold_value     = 80.0
+  threshold_level     = "WARN"
+  threshold_all_values = false
+  status              = "active"
+}
+
+# Example critical check with different threshold
+resource "influxdb_check" "critical_memory_usage" {
+  name                    = "terraform-memory-critical"
+  description             = "Critical memory usage alert"
+  query                   = <<-EOT
+    from(bucket: "terraform-example-bucket")
+      |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+      |> filter(fn: (r) => r._measurement == "memory")
+      |> filter(fn: (r) => r._field == "used_percent")
+      |> aggregateWindow(every: 5m, fn: max, createEmpty: false)
+      |> yield(name: "max")
+  EOT
+  every                   = "5m"
+  threshold_type          = "greater"
+  threshold_value         = 95.0
+  threshold_level         = "CRIT"
+  threshold_all_values    = false
+  status_message_template = "Memory usage is critical: $${r._value}%"
+  status                  = "active"
+}
