@@ -70,6 +70,7 @@ func (r *BucketResource) Schema(ctx context.Context, req resource.SchemaRequest,
 			},
 			"retention_seconds": schema.Int64Attribute{
 				Optional:            true,
+				Computed:            true,
 				MarkdownDescription: "Data retention period in seconds. 0 means infinite retention. Defaults to 0 (infinite).",
 			},
 		},
@@ -156,6 +157,7 @@ func (r *BucketResource) Create(ctx context.Context, req resource.CreateRequest,
 	if createdBucket.Description != nil {
 		data.Description = types.StringValue(*createdBucket.Description)
 	}
+
 	if len(createdBucket.RetentionRules) > 0 {
 		data.RetentionSeconds = types.Int64Value(createdBucket.RetentionRules[0].EverySeconds)
 	} else {
@@ -225,11 +227,11 @@ func (r *BucketResource) Update(ctx context.Context, req resource.UpdateRequest,
 	// Prepare retention rules for update
 	var retentionRules []domain.RetentionRule
 	retentionSeconds := int64(0) // Default to infinite retention
-	
+
 	if !data.RetentionSeconds.IsNull() {
 		retentionSeconds = data.RetentionSeconds.ValueInt64()
 	}
-	
+
 	retentionRules = append(retentionRules, domain.RetentionRule{
 		EverySeconds: retentionSeconds,
 	})
@@ -258,7 +260,7 @@ func (r *BucketResource) Update(ctx context.Context, req resource.UpdateRequest,
 	if updatedBucket.Description != nil {
 		data.Description = types.StringValue(*updatedBucket.Description)
 	}
-	
+
 	// Update retention policy
 	if len(updatedBucket.RetentionRules) > 0 {
 		data.RetentionSeconds = types.Int64Value(updatedBucket.RetentionRules[0].EverySeconds)
