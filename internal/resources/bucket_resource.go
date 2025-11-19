@@ -42,6 +42,14 @@ type BucketResourceModel struct {
 	RetentionSeconds types.Int64  `tfsdk:"retention_seconds"`
 }
 
+func (r *BucketResource) setRetentionSecondsFromRules(data *BucketResourceModel, retentionRules []domain.RetentionRule) {
+	if len(retentionRules) > 0 {
+		data.RetentionSeconds = types.Int64Value(retentionRules[0].EverySeconds)
+	} else {
+		data.RetentionSeconds = types.Int64Value(0) // Default to infinite
+	}
+}
+
 func (r *BucketResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_bucket"
 }
@@ -96,7 +104,7 @@ func (r *BucketResource) Configure(ctx context.Context, req resource.ConfigureRe
 	r.org = providerData.Org
 }
 
-func (r *BucketResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+func (resource *BucketResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var data BucketResourceModel
 
 	// Read Terraform plan data into the model
@@ -143,7 +151,7 @@ func (r *BucketResource) Create(ctx context.Context, req resource.CreateRequest,
 		bucket.Description = &desc
 	}
 
-	bucketsAPI := r.client.BucketsAPI()
+	bucketsAPI := resource.client.BucketsAPI()
 	createdBucket, err := bucketsAPI.CreateBucket(ctx, bucket)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create bucket, got error: %s", err))
@@ -158,17 +166,14 @@ func (r *BucketResource) Create(ctx context.Context, req resource.CreateRequest,
 		data.Description = types.StringValue(*createdBucket.Description)
 	}
 
-	if len(createdBucket.RetentionRules) > 0 {
-		data.RetentionSeconds = types.Int64Value(createdBucket.RetentionRules[0].EverySeconds)
-	} else {
-		data.RetentionSeconds = types.Int64Value(0) // Default to infinite
-	}
+	// Save retention policy (use first retention rule)
+	resource.setRetentionSecondsFromRules(&data, createdBucket.RetentionRules)
 
 	setDiags := resp.State.Set(ctx, &data)
 	resp.Diagnostics.Append(setDiags...)
 }
 
-func (r *BucketResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+func (resource *BucketResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var data BucketResourceModel
 
 	// Read Terraform prior state data into the model
@@ -203,18 +208,14 @@ func (r *BucketResource) Read(ctx context.Context, req resource.ReadRequest, res
 		data.Description = types.StringNull()
 	}
 
-	// Read retention policy
-	if len(bucket.RetentionRules) > 0 {
-		data.RetentionSeconds = types.Int64Value(bucket.RetentionRules[0].EverySeconds)
-	} else {
-		data.RetentionSeconds = types.Int64Value(0) // Default to infinite
-	}
+	// Read retention policy (check if rules exist)
+	resource.setRetentionSecondsFromRules(&data, bucket.RetentionRules)
 
 	readSetDiags := resp.State.Set(ctx, &data)
 	resp.Diagnostics.Append(readSetDiags...)
 }
 
-func (r *BucketResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+func (resource *BucketResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var data BucketResourceModel
 
 	// Read Terraform plan data into the model
@@ -248,7 +249,7 @@ func (r *BucketResource) Update(ctx context.Context, req resource.UpdateRequest,
 		bucket.Description = &desc
 	}
 
-	bucketsAPI := r.client.BucketsAPI()
+	bucketsAPI := resource.client.BucketsAPI()
 	updatedBucket, err := bucketsAPI.UpdateBucket(ctx, bucket)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update bucket, got error: %s", err))
@@ -261,12 +262,7 @@ func (r *BucketResource) Update(ctx context.Context, req resource.UpdateRequest,
 		data.Description = types.StringValue(*updatedBucket.Description)
 	}
 
-	// Update retention policy
-	if len(updatedBucket.RetentionRules) > 0 {
-		data.RetentionSeconds = types.Int64Value(updatedBucket.RetentionRules[0].EverySeconds)
-	} else {
-		data.RetentionSeconds = types.Int64Value(0) // Default to infinite
-	}
+	resource.setRetentionSecondsFromRules(&data, updatedBucket.RetentionRules)
 
 	updateSetDiags := resp.State.Set(ctx, &data)
 	resp.Diagnostics.Append(updateSetDiags...)

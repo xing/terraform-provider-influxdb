@@ -19,15 +19,6 @@ docker logs influxdb
 echo "Access InfluxDB UI at: $INFLUXDB_URL"
 ```
 
-**Stop and cleanup:**
-```bash
-# Stop the container
-docker stop influxdb
-
-# Remove the container
-docker rm influxdb
-```
-
 ## Setup
 
 1. **Build your provider first:**
@@ -53,7 +44,19 @@ docker rm influxdb
 
 # Skip terraform init when using dev_overrides
 # Plan the configuration (uses your local provider)
-terraform plan
+terraform plan -auto-approve  
 
-terraform apply
+terraform apply -auto-approve  
+```
+
+**Stop and cleanup:**
+```bash
+# Destroy all the resources
+terraform destroy -auto-approve 
+
+# Stop the container
+docker stop influxdb
+
+# Remove the container
+docker rm influxdb
 ```
