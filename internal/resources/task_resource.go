@@ -9,11 +9,55 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	"github.com/influxdata/influxdb-client-go/v2/domain"
 	"github.com/new-work/influxdb-provider/internal/common"
 )
+
+// fluxNormalizationModifier normalizes flux queries for comparison
+type fluxNormalizationModifier struct{}
+
+func (m fluxNormalizationModifier) Description(ctx context.Context) string {
+	return "Normalizes flux whitespace for comparison"
+}
+
+func (m fluxNormalizationModifier) MarkdownDescription(ctx context.Context) string {
+	return "Normalizes flux whitespace for comparison"
+}
+
+// normalizeFluxForComparison removes all leading/trailing whitespace and normalizes line breaks
+func normalizeFluxForComparison(flux string) string {
+	lines := strings.Split(flux, "\n")
+	var normalizedLines []string
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed != "" {
+			normalizedLines = append(normalizedLines, trimmed)
+		}
+	}
+
+	return strings.Join(normalizedLines, "\n")
+}
+
+func (m fluxNormalizationModifier) PlanModifyString(ctx context.Context, req planmodifier.StringRequest, resp *planmodifier.StringResponse) {
+	// If either config or state is null/unknown, don't modify
+	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() || req.StateValue.IsNull() || req.StateValue.IsUnknown() {
+		return
+	}
+
+	// Normalize both values for comparison
+	normalizedConfig := normalizeFluxForComparison(req.ConfigValue.ValueString())
+	normalizedState := normalizeFluxForComparison(req.StateValue.ValueString())
+
+	// If normalized values are equal, keep the state value to prevent drift
+	if normalizedConfig == normalizedState {
+		resp.PlanValue = req.StateValue
+	}
+}
 
 // Ensure provider defined types fully satisfy framework interfaces.
 var _ resource.Resource = &TaskResource{}
@@ -46,6 +90,7 @@ type TaskResourceModel struct {
 
 func (r *TaskResource) stripOptionTaskLine(flux string) string {
 	// Find and remove the option task pattern at the beginning
+	result := flux
 	if strings.Contains(flux, "option task = {") {
 		// Find the end of the option task declaration
 		start := strings.Index(flux, "option task = {")
@@ -65,15 +110,13 @@ func (r *TaskResource) stripOptionTaskLine(flux string) string {
 				}
 			}
 
-			// Remove the option task part and any following space
-			remaining := flux[end:]
-			remaining = strings.TrimPrefix(remaining, " ")
-
-			return strings.TrimSpace(remaining)
+			// Remove the option task part and any following whitespace
+			result = strings.TrimSpace(flux[end:])
 		}
 	}
 
-	return flux
+	// Just return the result after stripping the option task - preserve original formatting
+	return result
 }
 
 func (r *TaskResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -88,6 +131,9 @@ func (r *TaskResource) Schema(ctx context.Context, req resource.SchemaRequest, r
 			"id": schema.StringAttribute{
 				Computed:            true,
 				MarkdownDescription: "Task ID",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"name": schema.StringAttribute{
 				Required:            true,
@@ -97,6 +143,9 @@ func (r *TaskResource) Schema(ctx context.Context, req resource.SchemaRequest, r
 				Optional:            true,
 				Computed:            true,
 				MarkdownDescription: "Organization name or ID. If not provided, uses the provider default.",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"description": schema.StringAttribute{
 				Optional:            true,
@@ -105,6 +154,9 @@ func (r *TaskResource) Schema(ctx context.Context, req resource.SchemaRequest, r
 			"flux": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: "Flux script to execute",
+				PlanModifiers: []planmodifier.String{
+					fluxNormalizationModifier{},
+				},
 			},
 			"status": schema.StringAttribute{
 				Optional:            true,
@@ -126,6 +178,9 @@ func (r *TaskResource) Schema(ctx context.Context, req resource.SchemaRequest, r
 			"created_at": schema.StringAttribute{
 				Computed:            true,
 				MarkdownDescription: "Task creation timestamp",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"updated_at": schema.StringAttribute{
 				Computed:            true,
@@ -207,17 +262,14 @@ func (r *TaskResource) setComputedFields(data *TaskResourceModel, task *domain.T
 		data.Offset = types.StringNull()
 	}
 
-	// Set timestamps
+	// Set timestamps - only set CreatedAt during Create
 	if task.CreatedAt != nil {
 		data.CreatedAt = types.StringValue(task.CreatedAt.Format("2006-01-02T15:04:05Z07:00"))
 	} else {
 		data.CreatedAt = types.StringNull()
 	}
-	if task.UpdatedAt != nil {
-		data.UpdatedAt = types.StringValue(task.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"))
-	} else {
-		data.UpdatedAt = types.StringNull()
-	}
+	// Note: We don't set UpdatedAt here - it should only be set during actual Update operations
+	// This prevents Terraform from thinking it will change on subsequent applies
 }
 
 func (r *TaskResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -253,7 +305,7 @@ func (r *TaskResource) Create(ctx context.Context, req resource.CreateRequest, r
 	task := &domain.Task{
 		Name:  data.Name.ValueString(),
 		OrgID: *org.Id,
-		Flux:  data.Flux.ValueString(),
+		Flux:  r.stripOptionTaskLine(data.Flux.ValueString()),
 	}
 
 	// Set optional description
@@ -295,6 +347,11 @@ func (r *TaskResource) Create(ctx context.Context, req resource.CreateRequest, r
 	data.Org = types.StringValue(orgName) // Keep the original organization name/identifier that was used in config
 	r.setComputedFields(&data, createdTask)
 
+	// Ensure updated_at is never null - if InfluxDB doesn't provide it, use created_at
+	if data.UpdatedAt.IsNull() || data.UpdatedAt.IsUnknown() {
+		data.UpdatedAt = data.CreatedAt
+	}
+
 	setDiags := resp.State.Set(ctx, &data)
 	resp.Diagnostics.Append(setDiags...)
 }
@@ -317,23 +374,50 @@ func (r *TaskResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 		return
 	}
 
-	// Resolve organization ID to name for consistency
-	orgsAPI := r.client.OrganizationsAPI()
-	org, err := orgsAPI.FindOrganizationByID(ctx, task.OrgID)
-	if err != nil {
-		resp.Diagnostics.AddError("Read - Client Error", fmt.Sprintf("Unable to find organization with ID '%s', got error: %s", task.OrgID, err))
-		return
+	// Preserve stable computed fields from existing state (these should never change after creation)
+	// Keep ID, CreatedAt, Org, UpdatedAt exactly as they are to prevent unnecessary drift
+	// UpdatedAt should only change when we actually modify the task, not on reads
+	// (data.ID, data.CreatedAt, data.Org, data.UpdatedAt already have correct values from req.State.Get)
+
+	// Update fields that can actually change externally
+	data.Name = types.StringValue(task.Name)
+
+	if task.Description != nil {
+		data.Description = types.StringValue(*task.Description)
+	} else {
+		data.Description = types.StringNull()
 	}
-	data.Org = types.StringValue(org.Name)
 
-	// Update all fields from API response
-	r.setComputedFields(&data, task)
-
-	// Handle flux field specially to strip InfluxDB's automatic option task line
+	// Strip InfluxDB's automatic option task line from flux
 	data.Flux = types.StringValue(r.stripOptionTaskLine(task.Flux))
 
-	readSetDiags := resp.State.Set(ctx, &data)
-	resp.Diagnostics.Append(readSetDiags...)
+	if task.Status != nil {
+		data.Status = types.StringValue(string(*task.Status))
+	} else {
+		data.Status = types.StringValue("active")
+	}
+
+	if task.Cron != nil {
+		data.Cron = types.StringValue(*task.Cron)
+	} else {
+		data.Cron = types.StringNull()
+	}
+
+	if task.Every != nil {
+		data.Every = types.StringValue(*task.Every)
+	} else {
+		data.Every = types.StringNull()
+	}
+
+	if task.Offset != nil {
+		data.Offset = types.StringValue(*task.Offset)
+	} else {
+		data.Offset = types.StringNull()
+	}
+
+	// Note: We don't update UpdatedAt in Read method - preserve existing state value
+	// This prevents unnecessary drift when InfluxDB hasn't actually updated the timestamp	// Always set state - let Terraform framework handle change detection
+	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
 func (r *TaskResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -354,8 +438,10 @@ func (r *TaskResource) Update(ctx context.Context, req resource.UpdateRequest, r
 		return
 	}
 
-	// Use the ID from state (computed fields are not in plan)
+	// Use stable computed fields from state (these are not in plan but should be preserved)
 	data.ID = state.ID
+	data.CreatedAt = state.CreatedAt
+	data.Org = state.Org // Preserve org from state to prevent inconsistent result
 
 	// Validate scheduling
 	if !r.validateScheduling(&data, &resp.Diagnostics) {
@@ -394,11 +480,13 @@ func (r *TaskResource) Update(ctx context.Context, req resource.UpdateRequest, r
 			}
 		}
 
-		// Replace the content after the option task with our new flux
+		// Replace the content after the option task with our new flux (normalized)
 		optionPart := currentTask.Flux[:end]
-		updatedFlux = optionPart + " " + data.Flux.ValueString()
+		normalizedFlux := r.stripOptionTaskLine(data.Flux.ValueString())
+		updatedFlux = optionPart + " " + normalizedFlux
 	} else {
-		updatedFlux = data.Flux.ValueString()
+		// No option task exists, just use normalized flux
+		updatedFlux = r.stripOptionTaskLine(data.Flux.ValueString())
 	}
 
 	// Prepare task for update with required OrgID
@@ -444,18 +532,13 @@ func (r *TaskResource) Update(ctx context.Context, req resource.UpdateRequest, r
 		return
 	}
 
-	// Resolve organization ID to name for consistency (like in Read method)
-	orgsAPI := r.client.OrganizationsAPI()
-	org, err := orgsAPI.FindOrganizationByID(ctx, updatedTask.OrgID)
-	if err != nil {
-		resp.Diagnostics.AddError("Update - Client Error", fmt.Sprintf("Unable to find organization with ID '%s', got error: %s", updatedTask.OrgID, err))
-		return
-	}
-	data.Org = types.StringValue(org.Name)
+	// Note: We don't update data.Org here since it's preserved from state above
+	// and has UseStateForUnknown() plan modifier to prevent drift
 
-	// Update data from API response, but keep the original Flux from plan to avoid formatting differences
-	// data.Flux should remain as it was in the plan (data already has the planned Flux value)
-	r.setComputedFields(&data, updatedTask)
+	// Update timestamp from API response since this is an actual update operation
+	if updatedTask.UpdatedAt != nil {
+		data.UpdatedAt = types.StringValue(updatedTask.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"))
+	}
 
 	updateSetDiags := resp.State.Set(ctx, &data)
 	resp.Diagnostics.Append(updateSetDiags...)
