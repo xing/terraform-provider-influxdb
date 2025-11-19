@@ -115,13 +115,13 @@ func (resource *BucketResource) Create(ctx context.Context, req resource.CreateR
 	}
 
 	// Use provider org if not specified
-	orgName := r.org
+	orgName := resource.org
 	if !data.Org.IsNull() {
 		orgName = data.Org.ValueString()
 	}
 
 	// Resolve organization name to ID
-	orgsAPI := r.client.OrganizationsAPI()
+	orgsAPI := resource.client.OrganizationsAPI()
 	org, err := orgsAPI.FindOrganizationByName(ctx, orgName)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to find organization '%s', got error: %s", orgName, err))
@@ -184,7 +184,7 @@ func (resource *BucketResource) Read(ctx context.Context, req resource.ReadReque
 	}
 
 	// Get bucket by ID
-	bucketsAPI := r.client.BucketsAPI()
+	bucketsAPI := resource.client.BucketsAPI()
 	bucket, err := bucketsAPI.FindBucketByID(ctx, data.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read bucket, got error: %s", err))
@@ -194,7 +194,7 @@ func (resource *BucketResource) Read(ctx context.Context, req resource.ReadReque
 	// Update data from API response
 	data.Name = types.StringValue(bucket.Name)
 
-	orgsAPI := r.client.OrganizationsAPI()
+	orgsAPI := resource.client.OrganizationsAPI()
 	org, err := orgsAPI.FindOrganizationByID(ctx, *bucket.OrgID)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to find organization with ID '%s', got error: %s", *bucket.OrgID, err))
