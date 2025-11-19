@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
+	"github.com/new-work/influxdb-provider/internal/resources"
 )
 
 // Ensure InfluxDBProvider satisfies various provider interfaces.
@@ -116,12 +117,13 @@ func (p *InfluxDBProvider) Configure(ctx context.Context, req provider.Configure
 
 	client := influxdb2.NewClient(url, token)
 
-	resp.DataSourceData = &ProviderData{
+	// Store client in provider data for use in data sources and resources
+	resp.DataSourceData = &resources.ProviderData{
 		Client: client,
 		Org:    org,
 		Bucket: bucket,
 	}
-	resp.ResourceData = &ProviderData{
+	resp.ResourceData = &resources.ProviderData{
 		Client: client,
 		Org:    org,
 		Bucket: bucket,
@@ -130,7 +132,7 @@ func (p *InfluxDBProvider) Configure(ctx context.Context, req provider.Configure
 
 func (p *InfluxDBProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
-		// We'll add resources here later
+		resources.NewBucketResource,
 	}
 }
 
@@ -146,11 +148,4 @@ func New(version string) func() provider.Provider {
 			version: version,
 		}
 	}
-}
-
-// ProviderData contains the client and configuration for resources and data sources
-type ProviderData struct {
-	Client influxdb2.Client
-	Org    string
-	Bucket string
 }

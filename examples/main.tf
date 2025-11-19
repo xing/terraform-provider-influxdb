@@ -16,12 +16,16 @@ provider "influxdb" {
   bucket = var.influxdb_bucket
 }
 
-# Example configuration - you can add resources here when you implement them
-# resource "influxdb_bucket" "example" {
-#   name = "my-bucket"
-#   org  = var.influxdb_org
-# }
+# Example bucket resource
+resource "influxdb_bucket" "example" {
+  name        = "terraform-example-bucket"
+  description = "A bucket created by Terraform"
+  # org is optional - will use provider default if not specified
+}
 
-# data "influxdb_buckets" "all" {
-#   org = var.influxdb_org
-# }
+# Example bucket with explicit org
+resource "influxdb_bucket" "custom_org" {
+  name        = "custom-org-bucket"
+  org         = var.influxdb_org
+  description = "Bucket with explicit organization"
+}

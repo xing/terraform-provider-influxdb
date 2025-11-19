@@ -26,6 +26,12 @@ go.work.sum
 *.swp
 *.swo
 
+# Terraform state files
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+
+
 # OS generated files
 .DS_Store
 .DS_Store?
