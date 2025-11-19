@@ -138,9 +138,8 @@ func (r *CheckResource) Schema(ctx context.Context, req resource.SchemaRequest, 
 				MarkdownDescription: "Template for status messages",
 			},
 			"type": schema.StringAttribute{
-				Optional:            true,
-				Computed:            true,
-				MarkdownDescription: "Check type. Defaults to 'threshold'.",
+				Required:            true,
+				MarkdownDescription: "Check type ('threshold' or 'deadman').",
 			},
 			"created_at": schema.StringAttribute{
 				Computed:            true,
@@ -328,7 +327,7 @@ func (r *CheckResource) Create(ctx context.Context, req resource.CreateRequest, 
 		Status:     "active",
 		Every:      data.Every.ValueString(),
 		Offset:     "0s",
-		Type:       "threshold",
+		Type:       data.Type.ValueString(),
 		Thresholds: make([]CheckThreshold, len(data.Thresholds)),
 	}
 
@@ -361,6 +360,10 @@ func (r *CheckResource) Create(ctx context.Context, req resource.CreateRequest, 
 		template := data.StatusMessageTemplate.ValueString()
 		checkPayload.StatusMessageTemplate = &template
 	}
+
+	// Debug: Print payload before sending
+	payloadJSON, _ := json.MarshalIndent(checkPayload, "", "  ")
+	resp.Diagnostics.AddWarning("Create - Payload Debug", fmt.Sprintf("Sending payload: %s", string(payloadJSON)))
 
 	// Create check via HTTP API
 	respBody, err := r.makeHTTPRequest(ctx, "POST", "/api/v2/checks", checkPayload)
@@ -443,7 +446,7 @@ func (r *CheckResource) Update(ctx context.Context, req resource.UpdateRequest, 
 		Status:     data.Status.ValueString(),
 		Every:      data.Every.ValueString(),
 		Offset:     data.Offset.ValueString(),
-		Type:       "threshold",
+		Type:       data.Type.ValueString(),
 		Thresholds: make([]CheckThreshold, len(data.Thresholds)),
 	}
 
@@ -467,6 +470,10 @@ func (r *CheckResource) Update(ctx context.Context, req resource.UpdateRequest, 
 		template := data.StatusMessageTemplate.ValueString()
 		checkPayload.StatusMessageTemplate = &template
 	}
+
+	// Debug: Print payload before sending
+	payloadJSON, _ := json.MarshalIndent(checkPayload, "", "  ")
+	resp.Diagnostics.AddWarning("Update - Payload Debug", fmt.Sprintf("Sending payload: %s", string(payloadJSON)))
 
 	// Update check via HTTP API
 	endpoint := fmt.Sprintf("/api/v2/checks/%s", data.ID.ValueString())

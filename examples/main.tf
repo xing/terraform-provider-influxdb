@@ -83,6 +83,7 @@ resource "influxdb_check" "high_cpu_usage" {
   EOT
   every  = "1m"
   status = "active"
+  type   = "threshold"
 
   thresholds {
     type       = "greater"
@@ -107,6 +108,7 @@ resource "influxdb_check" "critical_memory_usage" {
   every                   = "5m"
   status_message_template = "Memory usage is critical: $${r._value}%"
   status                  = "active"
+  type                    = "threshold"
 
   thresholds {
     type       = "greater"
