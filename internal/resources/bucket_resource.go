@@ -135,7 +135,7 @@ func (r *BucketResource) Create(ctx context.Context, req resource.CreateRequest,
 	// Save data into Terraform state
 	data.ID = types.StringValue(*createdBucket.Id)
 	data.Name = types.StringValue(createdBucket.Name)
-	data.Org = types.StringValue(*createdBucket.OrgID)
+	data.Org = types.StringValue(orgName) // Keep the original organization name/identifier that was used in config
 	if createdBucket.Description != nil {
 		data.Description = types.StringValue(*createdBucket.Description)
 	}
@@ -164,7 +164,15 @@ func (r *BucketResource) Read(ctx context.Context, req resource.ReadRequest, res
 
 	// Update data from API response
 	data.Name = types.StringValue(bucket.Name)
-	data.Org = types.StringValue(*bucket.OrgID)
+
+	orgsAPI := r.client.OrganizationsAPI()
+	org, err := orgsAPI.FindOrganizationByID(ctx, *bucket.OrgID)
+	if err != nil {
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to find organization with ID '%s', got error: %s", *bucket.OrgID, err))
+		return
+	}
+	data.Org = types.StringValue(org.Name)
+
 	if bucket.Description != nil {
 		data.Description = types.StringValue(*bucket.Description)
 	} else {
