@@ -133,6 +133,7 @@ func (p *InfluxDBProvider) Configure(ctx context.Context, req provider.Configure
 func (p *InfluxDBProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		resources.NewBucketResource,
+		resources.NewTaskResource,
 	}
 }
 

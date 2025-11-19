@@ -38,3 +38,33 @@ resource "influxdb_bucket" "short_retention" {
   description      = "Bucket with 30-day retention policy"
   retention_seconds = 2592000  # 30 days (30 * 24 * 60 * 60 seconds)
 }
+
+# Example task with duration-based scheduling
+resource "influxdb_task" "example_every" {
+  name        = "terraform-example-task"
+  description = "A task created by Terraform with duration scheduling"
+  flux        = <<-EOT
+    from(bucket: "terraform-example-bucket")
+      |> range(start: -1h)
+      |> filter(fn: (r) => r._measurement == "cpu")
+      |> mean()
+      |> to(bucket: "short-retention-bucket")
+  EOT
+  every       = "1h"
+  status      = "active"
+}
+
+# Example task with cron-based scheduling
+resource "influxdb_task" "example_cron" {
+  name        = "terraform-cron-task"
+  description = "A task created by Terraform with cron scheduling"
+  flux        = <<-EOT
+    from(bucket: "short-retention-bucket")
+      |> range(start: -24h)
+      |> filter(fn: (r) => r._measurement == "temperature")
+      |> aggregateWindow(every: 1h, fn: mean)
+      |> to(bucket: "terraform-example-bucket")
+  EOT
+  cron        = "0 */6 * * *"  # Every 6 hours
+  status      = "active"
+}
