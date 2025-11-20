@@ -35,7 +35,7 @@ func main() {
 	flag.Parse()
 
 	opts := providerserver.ServeOpts{
-		Address: "registry.terraform.io/new-work/influxdb",
+		Address: "registry.terraform.io/xing/influxdb",
 		Debug:   debug,
 	}
 
