@@ -39,22 +39,28 @@ build-all: clean ## Build binaries for all platforms
 	@for platform in ${PLATFORMS}; do \
 		os=$$(echo $$platform | cut -d'/' -f1); \
 		arch=$$(echo $$platform | cut -d'/' -f2); \
-		binary_name=${BINARY_NAME}_${VERSION}_$${os}_$${arch}; \
+		binary_name=${BINARY_NAME}_${VERSION}; \
 		if [ "$$os" = "windows" ]; then \
 			binary_name=$${binary_name}.exe; \
 		fi; \
-		echo "Building $$binary_name..."; \
-		GOOS=$$os GOARCH=$$arch go build ${LDFLAGS} -o ${BUILD_DIR}/$$binary_name; \
+		echo "Building for $$os/$$arch..."; \
+		GOOS=$$os GOARCH=$$arch go build ${LDFLAGS} -o ${BUILD_DIR}/$${os}_$${arch}/$$binary_name; \
 	done
 
 package: build-all ## Package binaries into archives
 	@echo "Packaging binaries..."
-	@cd ${BUILD_DIR} && for file in ${BINARY_NAME}_${VERSION}_*; do \
-		if [[ $$file == *.exe ]]; then \
-			zip $${file%.exe}.zip $$file; \
+	@cd ${BUILD_DIR} && for platform in ${PLATFORMS}; do \
+		os=$$(echo $$platform | cut -d'/' -f1); \
+		arch=$$(echo $$platform | cut -d'/' -f2); \
+		binary_name=${BINARY_NAME}_${VERSION}; \
+		archive_name=${BINARY_NAME}_${VERSION}_$${os}_$${arch}; \
+		if [ "$$os" = "windows" ]; then \
+			binary_name=$${binary_name}.exe; \
+			cd $${os}_$${arch} && zip ../$${archive_name}.zip $$binary_name && cd ..; \
 		else \
-			tar -czf $${file}.tar.gz $$file; \
+			cd $${os}_$${arch} && tar -czf ../$${archive_name}.tar.gz $$binary_name && cd ..; \
 		fi; \
+		rm -rf $${os}_$${arch}; \
 	done
 	@echo "Creating checksums..."
 	@cd ${BUILD_DIR} && shasum -a 256 *.zip *.tar.gz > ${BINARY_NAME}_${VERSION}_SHA256SUMS
