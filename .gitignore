@@ -1,6 +1,7 @@
 # Binaries for programs and plugins
 terraform-provider-influxdb
 terraform-provider-influxdb.exe
+terraform-provider-influxdb_v*
 *.exe
 *.exe~
 *.dll
@@ -30,6 +31,10 @@ go.work.sum
 *.tfstate
 *.tfstate.*
 *.tfstate.backup
+
+# Release artifacts
+*.zip
+*.tar.gz
 
 
 # OS generated files
