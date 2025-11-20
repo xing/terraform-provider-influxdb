@@ -59,7 +59,6 @@ package: build-all ## Package binaries into archives
 	@echo "Creating checksums..."
 	@cd ${BUILD_DIR} && shasum -a 256 *.zip *.tar.gz > ${BINARY_NAME}_${VERSION}_SHA256SUMS
 	@echo "Signing checksums..."
-	@cd ${BUILD_DIR} && gpg --detach-sign --armor ${BINARY_NAME}_${VERSION}_SHA256SUMS
 	@cd ${BUILD_DIR} && gpg --detach-sign --output ${BINARY_NAME}_${VERSION}_SHA256SUMS.sig ${BINARY_NAME}_${VERSION}_SHA256SUMS
 	@echo "Copying manifest..."
 	@cp terraform-registry-manifest.json ${BUILD_DIR}/${BINARY_NAME}_${VERSION}_manifest.json
@@ -110,7 +109,11 @@ github-release: package ## Create GitHub release with artifacts
 	@temp_notes=$$(mktemp); \
 	awk "/^## ${VERSION}/"',/^## [^${VERSION}]/{if(/^## [^${VERSION}]/) exit; print}' RELEASE_NOTES.md > $$temp_notes; \
 	gh release create ${VERSION} \
-		${BUILD_DIR}/* \
+		${BUILD_DIR}/*.zip \
+		${BUILD_DIR}/*.tar.gz \
+		${BUILD_DIR}/*_manifest.json \
+		${BUILD_DIR}/*_SHA256SUMS \
+		${BUILD_DIR}/*_SHA256SUMS.sig \
 		--title "Release ${VERSION}" \
 		--notes-file $$temp_notes; \
 	rm $$temp_notes
