@@ -39,7 +39,7 @@ build-all: clean ## Build binaries for all platforms
 	@for platform in ${PLATFORMS}; do \
 		os=$$(echo $$platform | cut -d'/' -f1); \
 		arch=$$(echo $$platform | cut -d'/' -f2); \
-		binary_name=${BINARY_NAME}_v${VERSION}_$${os}_$${arch}; \
+		binary_name=${BINARY_NAME}_${VERSION}_$${os}_$${arch}; \
 		if [ "$$os" = "windows" ]; then \
 			binary_name=$${binary_name}.exe; \
 		fi; \
@@ -49,7 +49,7 @@ build-all: clean ## Build binaries for all platforms
 
 package: build-all ## Package binaries into archives
 	@echo "Packaging binaries..."
-	@cd ${BUILD_DIR} && for file in ${BINARY_NAME}_v${VERSION}_*; do \
+	@cd ${BUILD_DIR} && for file in ${BINARY_NAME}_${VERSION}_*; do \
 		if [[ $$file == *.exe ]]; then \
 			zip $${file%.exe}.zip $$file; \
 		else \
