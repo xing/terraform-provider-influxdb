@@ -1,5 +1,22 @@
 # Release Notes
 
+## v0.1.6 - 2025-11-20
+
+### Features
+- Initial stable release for Terraform Registry
+- Support for InfluxDB bucket management
+- Multi-platform binary support (darwin/linux/windows on amd64/arm64)
+
+### Bug Fixes
+- Fixed binary naming convention for Terraform Registry compatibility
+- Corrected archive structure to meet registry requirements
+- Removed unnecessary signature files that could cause validation issues
+
+### Changes
+- Optimized release process for Terraform Registry submission
+- Updated Makefile to generate proper binary and archive naming
+- Added comprehensive platform support
+
 ## v0.1.0 - 2025-11-20
 
 ## Features
