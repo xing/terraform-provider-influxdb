@@ -10,8 +10,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
-	"github.com/new-work/influxdb-provider/internal/common"
-	"github.com/new-work/influxdb-provider/internal/resources"
+	"github.com/xing/terraform-provider-influxdb/internal/common"
+	"github.com/xing/terraform-provider-influxdb/internal/resources"
 )
 
 // Ensure InfluxDBProvider satisfies various provider interfaces.

@@ -11,7 +11,7 @@ import (
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	"github.com/influxdata/influxdb-client-go/v2/domain"
 
-	"github.com/new-work/influxdb-provider/internal/common"
+	"github.com/xing/terraform-provider-influxdb/internal/common"
 )
 
 // Ensure provider defined types fully satisfy framework interfaces.

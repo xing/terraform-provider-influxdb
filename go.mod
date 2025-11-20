@@ -1,4 +1,4 @@
-module github.com/new-work/influxdb-provider
+module github.com/xing/terraform-provider-influxdb
 
 go 1.21
 
