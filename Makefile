@@ -60,6 +60,7 @@ package: build-all ## Package binaries into archives
 	@cd ${BUILD_DIR} && shasum -a 256 *.zip *.tar.gz > ${BINARY_NAME}_${VERSION}_SHA256SUMS
 	@echo "Signing checksums..."
 	@cd ${BUILD_DIR} && gpg --detach-sign --armor ${BINARY_NAME}_${VERSION}_SHA256SUMS
+	@cd ${BUILD_DIR} && gpg --detach-sign --output ${BINARY_NAME}_${VERSION}_SHA256SUMS.sig ${BINARY_NAME}_${VERSION}_SHA256SUMS
 	@echo "Copying manifest..."
 	@cp terraform-registry-manifest.json ${BUILD_DIR}/${BINARY_NAME}_${VERSION}_manifest.json
 
