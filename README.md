@@ -74,6 +74,36 @@ resource "influxdb_task" "example" {
 
 See the [examples README](./examples/README.md) for detailed instructions on setting up and testing the provider locally.
 
+## Development
+
+### Building and Testing
+
+```bash
+# Build for current platform
+make build
+
+# Run tests
+make test
+
+# Install locally for development
+make install
+
+# Format and lint code
+make fmt
+make lint
+```
+
+### Releasing
+
+This project uses [GoReleaser](https://goreleaser.com/) for releases. See [RELEASE.md](./RELEASE.md) for detailed release instructions.
+
+**Quick release:**
+```bash
+make release-notes VERSION=v0.1.8    # Edit RELEASE_NOTES.md
+git add RELEASE_NOTES.md && git commit -m "Release v0.1.8" && git tag v0.1.8
+make goreleaser-release VERSION=v0.1.8
+```
+
 ## Documentation
 
 Detailed documentation for each resource is available in the [docs](./docs) directory.
@@ -82,9 +112,13 @@ Detailed documentation for each resource is available in the [docs](./docs) dire
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -am 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+3. Make your changes and add tests
+4. Run `make test fmt lint` to validate changes
+5. Commit your changes (`git commit -am 'Add amazing feature'`)
+6. Push to the branch (`git push origin feature/amazing-feature`)
+7. Open a Pull Request
+
+Follow [Terraform provider best practices](https://developer.hashicorp.com/terraform/plugin/best-practices) for development.
 
 ## License
 

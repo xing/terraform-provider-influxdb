@@ -1,10 +1,17 @@
-.PHONY: build test clean install release help
+# Terraform Provider InfluxDB Makefile
+#
+# This project uses GoReleaser for official releases following HashiCorp's
+# recommended practices for Terraform Registry compatibility.
+#
+# For releases, use: make goreleaser-release VERSION=v0.1.8
+# For local builds: make build or make install
+#
+.PHONY: build test clean install release help goreleaser-build goreleaser-release
 
 # Variables
 BINARY_NAME=terraform-provider-influxdb
 VERSION ?= $(shell git describe --tags --always --dirty)
 LDFLAGS=-ldflags "-X main.version=${VERSION}"
-PLATFORMS=darwin/amd64 darwin/arm64 linux/amd64 linux/arm64 windows/amd64
 BUILD_DIR=dist
 
 # Default target
@@ -32,42 +39,6 @@ install: build ## Install the provider locally for development
 	@echo "Installing provider for local development..."
 	@mkdir -p ~/.terraform.d/plugins/registry.terraform.io/xing/influxdb/0.1.0/darwin_amd64
 	@cp ${BINARY_NAME} ~/.terraform.d/plugins/registry.terraform.io/xing/influxdb/0.1.0/darwin_amd64/
-
-build-all: clean ## Build binaries for all platforms
-	@echo "Building binaries for all platforms..."
-	@mkdir -p ${BUILD_DIR}
-	@for platform in ${PLATFORMS}; do \
-		os=$$(echo $$platform | cut -d'/' -f1); \
-		arch=$$(echo $$platform | cut -d'/' -f2); \
-		binary_name=${BINARY_NAME}_${VERSION}; \
-		if [ "$$os" = "windows" ]; then \
-			binary_name=$${binary_name}.exe; \
-		fi; \
-		echo "Building for $$os/$$arch..."; \
-		GOOS=$$os GOARCH=$$arch go build ${LDFLAGS} -o ${BUILD_DIR}/$${os}_$${arch}/$$binary_name; \
-	done
-
-package: build-all ## Package binaries into archives
-	@echo "Packaging binaries..."
-	@cd ${BUILD_DIR} && for platform in ${PLATFORMS}; do \
-		os=$$(echo $$platform | cut -d'/' -f1); \
-		arch=$$(echo $$platform | cut -d'/' -f2); \
-		binary_name=${BINARY_NAME}_${VERSION}; \
-		archive_name=${BINARY_NAME}_${VERSION}_$${os}_$${arch}; \
-		if [ "$$os" = "windows" ]; then \
-			binary_name=$${binary_name}.exe; \
-			cd $${os}_$${arch} && zip ../$${archive_name}.zip $$binary_name && cd ..; \
-		else \
-			cd $${os}_$${arch} && tar -czf ../$${archive_name}.tar.gz $$binary_name && cd ..; \
-		fi; \
-		rm -rf $${os}_$${arch}; \
-	done
-	@echo "Creating checksums..."
-	@cd ${BUILD_DIR} && shasum -a 256 *.zip *.tar.gz > ${BINARY_NAME}_${VERSION}_SHA256SUMS
-	@echo "Signing checksums..."
-	@cd ${BUILD_DIR} && gpg --detach-sign --output ${BINARY_NAME}_${VERSION}_SHA256SUMS.sig ${BINARY_NAME}_${VERSION}_SHA256SUMS
-	@echo "Copying manifest..."
-	@cp terraform-registry-manifest.json ${BUILD_DIR}/${BINARY_NAME}_${VERSION}_manifest.json
 
 release-notes: ## Add new version to RELEASE_NOTES.md
 	@echo "Adding release notes for version ${VERSION}..."
@@ -100,39 +71,28 @@ tag: ## Create and push a git tag
 	git tag ${VERSION}
 	git push origin ${VERSION}
 
-github-release: package ## Create GitHub release with artifacts
-	@if [ -z "${VERSION}" ] || [ "${VERSION}" = "dev" ]; then \
-		echo "Error: VERSION must be set to create a release (e.g., make github-release VERSION=v0.1.1)"; \
-		exit 1; \
-	fi
-	@echo "Pushing tag ${VERSION}..."
-	@git push origin ${VERSION}
-	@echo "Creating GitHub release ${VERSION}..."
-	@if ! command -v gh >/dev/null 2>&1; then \
-		echo "Error: GitHub CLI (gh) is not installed. Please install it first."; \
-		exit 1; \
-	fi
-	@temp_notes=$$(mktemp); \
-	awk "/^## ${VERSION}/"',/^## [^${VERSION}]/{if(/^## [^${VERSION}]/) exit; print}' RELEASE_NOTES.md > $$temp_notes; \
-	gh release create ${VERSION} \
-		${BUILD_DIR}/*.zip \
-		${BUILD_DIR}/*.tar.gz \
-		${BUILD_DIR}/*_manifest.json \
-		${BUILD_DIR}/*_SHA256SUMS \
-		${BUILD_DIR}/*_SHA256SUMS.sig \
-		--title "Release ${VERSION}" \
-		--notes-file $$temp_notes; \
-	rm $$temp_notes
+github-release: ## Create GitHub release (use GoReleaser instead)
+	@echo "Warning: github-release is deprecated. Use 'make goreleaser-release' instead."
+	@echo "GoReleaser creates better releases with proper Terraform Registry compatibility."
 
-release: clean ## Full release process (build, package, tag, GitHub release)
+# GoReleaser targets
+goreleaser-build: ## Build with GoReleaser (snapshot)
+	@echo "Building snapshot with GoReleaser..."
+	@goreleaser build --snapshot --clean
+
+goreleaser-release: ## Create release with GoReleaser
 	@if [ -z "${VERSION}" ] || [ "${VERSION}" = "dev" ]; then \
-		echo "Error: VERSION must be set for release (e.g., make release VERSION=v0.1.1)"; \
+		echo "Error: VERSION must be set for release (e.g., make goreleaser-release VERSION=v0.1.8)"; \
 		exit 1; \
 	fi
-	@echo "Starting full release process for ${VERSION}..."
-	@$(MAKE) tag VERSION=${VERSION}
-	@$(MAKE) github-release VERSION=${VERSION}
-	@echo "Release ${VERSION} completed successfully!"
+	@if [ -z "${GPG_FINGERPRINT}" ]; then \
+		echo "Error: GPG_FINGERPRINT must be set (e.g., export GPG_FINGERPRINT=your-key-id)"; \
+		exit 1; \
+	fi
+	@echo "Creating release ${VERSION} with GoReleaser..."
+	@GITHUB_TOKEN=$$(gh auth token) goreleaser release --clean
+
+release: goreleaser-release ## Alias for goreleaser-release
 
 dev-release: ## Quick release for current platform only (for development)
 	@version=$$(git describe --tags --always --dirty); \
