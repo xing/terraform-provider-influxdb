@@ -56,6 +56,12 @@ package: build-all ## Package binaries into archives
 			tar -czf $${file}.tar.gz $$file; \
 		fi; \
 	done
+	@echo "Creating checksums..."
+	@cd ${BUILD_DIR} && shasum -a 256 *.zip *.tar.gz > ${BINARY_NAME}_${VERSION}_SHA256SUMS
+	@echo "Signing checksums..."
+	@cd ${BUILD_DIR} && gpg --detach-sign --armor ${BINARY_NAME}_${VERSION}_SHA256SUMS
+	@echo "Copying manifest..."
+	@cp terraform-registry-manifest.json ${BUILD_DIR}/${BINARY_NAME}_${VERSION}_manifest.json
 
 release-notes: ## Add new version to RELEASE_NOTES.md
 	@echo "Adding release notes for version ${VERSION}..."
@@ -93,6 +99,8 @@ github-release: package ## Create GitHub release with artifacts
 		echo "Error: VERSION must be set to create a release (e.g., make github-release VERSION=v0.1.1)"; \
 		exit 1; \
 	fi
+	@echo "Pushing tag ${VERSION}..."
+	@git push origin ${VERSION}
 	@echo "Creating GitHub release ${VERSION}..."
 	@if ! command -v gh >/dev/null 2>&1; then \
 		echo "Error: GitHub CLI (gh) is not installed. Please install it first."; \
@@ -101,7 +109,7 @@ github-release: package ## Create GitHub release with artifacts
 	@temp_notes=$$(mktemp); \
 	awk "/^## ${VERSION}/"',/^## [^${VERSION}]/{if(/^## [^${VERSION}]/) exit; print}' RELEASE_NOTES.md > $$temp_notes; \
 	gh release create ${VERSION} \
-		${BUILD_DIR}/*.zip ${BUILD_DIR}/*.tar.gz \
+		${BUILD_DIR}/* \
 		--title "Release ${VERSION}" \
 		--notes-file $$temp_notes; \
 	rm $$temp_notes
