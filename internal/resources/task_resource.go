@@ -59,6 +59,56 @@ func (m fluxNormalizationModifier) PlanModifyString(ctx context.Context, req pla
 	}
 }
 
+// updatedAtConditionalModifier preserves updated_at when no changes occur
+type updatedAtConditionalModifier struct{}
+
+func (m updatedAtConditionalModifier) Description(ctx context.Context) string {
+	return "Preserves updated_at value when no other fields change"
+}
+
+func (m updatedAtConditionalModifier) MarkdownDescription(ctx context.Context) string {
+	return "Preserves updated_at value when no other fields change"
+}
+
+func (m updatedAtConditionalModifier) PlanModifyString(ctx context.Context, req planmodifier.StringRequest, resp *planmodifier.StringResponse) {
+	// If this is a create operation, let it be computed
+	if req.State.Raw.IsNull() {
+		return
+	}
+
+	// Get the complete state and plan data to compare all fields
+	var stateData, planData TaskResourceModel
+	diags := req.State.Get(ctx, &stateData)
+	if diags.HasError() {
+		resp.Diagnostics.Append(diags...)
+		return
+	}
+
+	diags = req.Plan.Get(ctx, &planData)
+	if diags.HasError() {
+		resp.Diagnostics.Append(diags...)
+		return
+	}
+
+	// Check if any fields other than updated_at are changing
+	fieldsChanged := false
+	if !stateData.Name.Equal(planData.Name) ||
+		!stateData.Description.Equal(planData.Description) ||
+		!stateData.Cron.Equal(planData.Cron) ||
+		!stateData.Every.Equal(planData.Every) ||
+		!stateData.Offset.Equal(planData.Offset) ||
+		!stateData.Status.Equal(planData.Status) ||
+		normalizeFluxForComparison(stateData.Flux.ValueString()) != normalizeFluxForComparison(planData.Flux.ValueString()) {
+		fieldsChanged = true
+	}
+
+	// If no other fields changed, keep the current updated_at value
+	if !fieldsChanged {
+		resp.PlanValue = req.StateValue
+	}
+	// Otherwise, let it be computed (don't set resp.PlanValue)
+}
+
 // Ensure provider defined types fully satisfy framework interfaces.
 var _ resource.Resource = &TaskResource{}
 var _ resource.ResourceWithImportState = &TaskResource{}
@@ -185,6 +235,9 @@ func (r *TaskResource) Schema(ctx context.Context, req resource.SchemaRequest, r
 			"updated_at": schema.StringAttribute{
 				Computed:            true,
 				MarkdownDescription: "Task last update timestamp",
+				PlanModifiers: []planmodifier.String{
+					updatedAtConditionalModifier{},
+				},
 			},
 		},
 	}
