@@ -1,6 +1,6 @@
 terraform {
   required_version = ">= 1.0"
-  
+
   required_providers {
     influxdb = {
       source  = "registry.terraform.io/new-work/influxdb"
@@ -26,17 +26,17 @@ resource "influxdb_bucket" "example" {
 
 # Example bucket with explicit org and retention policy
 resource "influxdb_bucket" "custom_org" {
-  name             = "custom-org-bucket"
-  org              = var.influxdb_org
-  description      = "Bucket with explicit organization"
-  retention_seconds = 604800  # 7 days retention (7 * 24 * 60 * 60 seconds)
+  name              = "custom-org-bucket"
+  org               = var.influxdb_org
+  description       = "Bucket with explicit organization"
+  retention_seconds = 604800 # 7 days retention (7 * 24 * 60 * 60 seconds)
 }
 
 # Example bucket with 30-day retention
 resource "influxdb_bucket" "short_retention" {
-  name             = "short-retention-bucket"
-  description      = "Bucket with 30-day retention policy"
-  retention_seconds = 2592000  # 30 days (30 * 24 * 60 * 60 seconds)
+  name              = "short-retention-bucket"
+  description       = "Bucket with 30-day retention policy"
+  retention_seconds = 2592000 # 30 days (30 * 24 * 60 * 60 seconds)
 }
 
 # # Example task with duration-based scheduling
@@ -65,7 +65,7 @@ resource "influxdb_task" "example_cron" {
       |> aggregateWindow(every: 1h, fn: mean)
       |> to(bucket: "terraform-example-bucket")
   EOT
-  cron        = "0 */6 * * *"  # Every 6 hours
+  cron        = "0 */6 * * *" # Every 6 hours
   status      = "active"
 }
 
@@ -81,9 +81,9 @@ resource "influxdb_check" "high_cpu_usage" {
       |> aggregateWindow(every: 1m, fn: mean, createEmpty: false)
       |> yield(name: "mean")
   EOT
-  every  = "1m"
-  status = "active"
-  type   = "threshold"
+  every       = "1m"
+  status      = "active"
+  type        = "threshold"
 
   thresholds {
     type       = "greater"
