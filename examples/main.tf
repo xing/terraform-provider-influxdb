@@ -69,6 +69,24 @@ resource "influxdb_task" "example_cron" {
   status      = "active"
 }
 
+# Simple task with import (requires option task declaration)
+resource "influxdb_task" "import_example" {
+  name        = "import-example"
+  description = "Simple task demonstrating import usage"
+  flux        = <<-EOT
+    import "array"
+    
+    option task = { name: "import-example", every: 5m }
+    
+    array.from(rows: [
+      {_time: now(), _measurement: "test", _field: "value", _value: 1}
+    ]) 
+      |> to(bucket: "terraform-example-bucket")
+  EOT
+  every       = "5m"
+  status      = "active"
+}
+
 # Example check for monitoring bucket data
 resource "influxdb_check" "high_cpu_usage" {
   name        = "terraform-high-cpu-check"
