@@ -44,7 +44,7 @@ echo "Access InfluxDB UI at: $INFLUXDB_URL"
 
 # Skip terraform init when using dev_overrides
 # Plan the configuration (uses your local provider)
-terraform plan -auto-approve  
+terraform plan 
 
 terraform apply -auto-approve  
 ```
