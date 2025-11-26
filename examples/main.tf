@@ -135,3 +135,64 @@ resource "influxdb_check" "critical_memory_usage" {
     all_values = false
   }
 }
+
+# Example HTTP notification endpoint (no authentication required)
+resource "influxdb_notification_endpoint" "webhook_endpoint" {
+  name = "terraform-webhook-endpoint"
+  type = "http"
+  url  = "https://api.example.com/webhooks/influx"
+  # token and auth_method are optional - omit them for endpoints that don't require auth
+}
+
+# Example notification rule for high CPU alerts to webhook
+resource "influxdb_notification_rule" "cpu_alert_rule" {
+  name             = "terraform-cpu-alert"
+  description      = "Alert when CPU usage goes from OK to WARN or CRIT"
+  endpoint_id      = influxdb_notification_endpoint.webhook_endpoint.id
+  message_template = "🚨 CPU Alert: $${r._check_name} is $${r._level} - Usage: $${r._value}%"
+
+  # Status rules - array of objects
+  status_rules = [
+    {
+      current_level  = "WARN"
+      previous_level = "OK"
+    },
+    {
+      current_level = "CRIT"
+    }
+  ]
+
+  # Tag rules - array of objects  
+  tag_rules = [
+    {
+      key      = "host"
+      value    = "production-web-*"
+      operator = "equal"
+    }
+  ]
+}
+
+# Example notification rule for memory alerts to webhook
+resource "influxdb_notification_rule" "memory_alert_rule" {
+  name             = "terraform-memory-alert"
+  description      = "Critical memory usage notifications"
+  endpoint_id      = influxdb_notification_endpoint.webhook_endpoint.id
+  message_template = "Memory Critical: $${r._check_name} on $${r.host} - $${r._value}% used"
+
+  # Status rules - array of objects
+  status_rules = [
+    {
+      current_level  = "CRIT"
+      previous_level = "WARN"
+    }
+  ]
+
+  # Tag rules - array of objects
+  tag_rules = [
+    {
+      key      = "environment"
+      value    = "production"
+      operator = "equal"
+    }
+  ]
+}

@@ -21,3 +21,10 @@ variable "influxdb_bucket" {
   type        = string
   default     = "my-bucket"
 }
+
+variable "webhook_token" {
+  description = "Authentication token for webhook notifications (optional)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}

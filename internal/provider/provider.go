@@ -140,6 +140,8 @@ func (p *InfluxDBProvider) Resources(ctx context.Context) []func() resource.Reso
 		resources.NewBucketResource,
 		resources.NewTaskResource,
 		resources.NewCheckResource,
+		resources.NewNotificationEndpointResource,
+		resources.NewNotificationRuleResource,
 	}
 }
 
