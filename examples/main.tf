@@ -39,21 +39,6 @@ resource "influxdb_bucket" "short_retention" {
   retention_seconds = 2592000 # 30 days (30 * 24 * 60 * 60 seconds)
 }
 
-# # Example task with duration-based scheduling
-# resource "influxdb_task" "example_every" {
-#   name        = "terraform-example-task"
-#   description = "A task created by Terraform with duration scheduling"
-#   flux        = <<-EOT
-#     from(bucket: "terraform-example-bucket")
-#       |> range(start: -1h)
-#       |> filter(fn: (r) => r._measurement == "cpu")
-#       |> mean()
-#       |> to(bucket: "short-retention-bucket")
-#   EOT
-#   every       = "1h"
-#   status      = "active"
-# }
-
 # Example task with cron-based scheduling
 resource "influxdb_task" "example_cron" {
   name        = "terraform-cron-task"
@@ -87,29 +72,6 @@ resource "influxdb_task" "import_example" {
   status      = "active"
 }
 
-# Example check for monitoring bucket data
-resource "influxdb_check" "high_cpu_usage" {
-  name        = "terraform-high-cpu-check"
-  description = "Monitor for high CPU usage in terraform-example-bucket"
-  query       = <<-EOT
-    from(bucket: "terraform-example-bucket")
-      |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
-      |> filter(fn: (r) => r._measurement == "cpu")
-      |> filter(fn: (r) => r._field == "usage_percent")
-      |> aggregateWindow(every: 1m, fn: mean, createEmpty: false)
-      |> yield(name: "mean")
-  EOT
-  every       = "1m"
-  status      = "active"
-  type        = "threshold"
-
-  thresholds {
-    type       = "greater"
-    value      = 80.0
-    level      = "WARN"
-    all_values = false
-  }
-}
 
 # Example critical check with different threshold
 resource "influxdb_check" "critical_memory_usage" {
@@ -117,13 +79,12 @@ resource "influxdb_check" "critical_memory_usage" {
   description             = "Critical memory usage alert"
   query                   = <<-EOT
     from(bucket: "terraform-example-bucket")
-      |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+      |> range(start: -10m)
       |> filter(fn: (r) => r._measurement == "memory")
       |> filter(fn: (r) => r._field == "used_percent")
       |> aggregateWindow(every: 5m, fn: max, createEmpty: false)
-      |> yield(name: "max")
   EOT
-  every                   = "5m"
+  every                   = "1m"
   status_message_template = "Memory usage is critical: $${r._value}%"
   status                  = "active"
   type                    = "threshold"
