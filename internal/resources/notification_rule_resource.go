@@ -100,14 +100,12 @@ func (r *NotificationRuleResource) Schema(ctx context.Context, req resource.Sche
 				MarkdownDescription: "ID of the notification endpoint to send notifications to",
 			},
 			"every": schema.StringAttribute{
-				Optional:            true,
-				Computed:            true,
-				MarkdownDescription: "Check frequency (e.g., '1m', '5m'). Defaults to '10m' if not specified.",
+				Required:            true,
+				MarkdownDescription: "Check frequency (e.g., '1m', '5m')",
 			},
 			"offset": schema.StringAttribute{
-				Optional:            true,
-				Computed:            true,
-				MarkdownDescription: "Offset duration before checking. Defaults to '0s' if not specified.",
+				Required:            true,
+				MarkdownDescription: "Offset duration before checking",
 			},
 			"message_template": schema.StringAttribute{
 				Optional:            true,
@@ -264,24 +262,19 @@ func (r *NotificationRuleResource) Create(ctx context.Context, req resource.Crea
 	}
 
 	// Prepare request with values from model
-	every := "10m" // Default schedule
-	if !data.Every.IsNull() && data.Every.ValueString() != "" {
-		every = data.Every.ValueString()
-	}
-
 	ruleReq := NotificationRuleRequest{
 		Name:        data.Name.ValueString(),
-		Status:      data.Status.ValueString(),
-		Type:        data.Type.ValueString(),
+		Status:      data.Status.ValueString(), 
+		Type:        data.Type.ValueString(),  
 		EndpointID:  data.EndpointID.ValueString(),
 		OwnerID:     *currentUser.Id,
-		Every:       every,
+		Every:       data.Every.ValueString(), 
 		OrgID:       *orgObj.Id,
-		StatusRules: []StatusRule{}, // Will be populated below if provided
+		StatusRules: []StatusRule{},
 	}
 
-	// Set offset
-	offset := "0s"
+	// Set offset from model
+	offset := data.Offset.ValueString()
 	ruleReq.Offset = &offset
 
 	// Make HTTP request
@@ -477,11 +470,6 @@ func (r *NotificationRuleResource) Update(ctx context.Context, req resource.Upda
 	}
 
 	// Prepare request for PUT update (requires ID)
-	every := "10m"
-	if !data.Every.IsNull() {
-		every = data.Every.ValueString()
-	}
-
 	ruleReq := NotificationRuleUpdateRequest{
 		ID:          data.ID.ValueString(),
 		Name:        data.Name.ValueString(),
@@ -489,13 +477,13 @@ func (r *NotificationRuleResource) Update(ctx context.Context, req resource.Upda
 		Type:        data.Type.ValueString(),   // Required field from model
 		EndpointID:  data.EndpointID.ValueString(),
 		OwnerID:     *currentUser.Id,
-		Every:       every,
+		Every:       data.Every.ValueString(), // Required field from model
 		OrgID:       *orgObj.Id,
 		StatusRules: []StatusRule{}, // Will be populated below if provided
 	}
 
-	// Set offset
-	offset := "0s"
+	// Set offset from model
+	offset := data.Offset.ValueString()
 	ruleReq.Offset = &offset
 
 	if !data.Description.IsNull() {

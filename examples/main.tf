@@ -152,7 +152,9 @@ resource "influxdb_notification_rule" "cpu_alert_rule" {
   endpoint_id      = influxdb_notification_endpoint.webhook_endpoint.id
   message_template = "🚨 CPU Alert: $${r._check_name} is $${r._level} - Usage: $${r._value}%"
   status           = "active"
-  type = "http"
+  type             = "http"
+  every            = "10m"
+  offset           = "0s"
 }
 
 # Example notification rule for memory alerts to webhook
@@ -162,5 +164,7 @@ resource "influxdb_notification_rule" "memory_alert_rule" {
   endpoint_id      = influxdb_notification_endpoint.webhook_endpoint.id
   message_template = "Memory Critical: $${r._check_name} on $${r.host} - $${r._value}% used"
   status           = "active"
-  type = "http"
+  type             = "http"
+  every            = "5m"
+  offset           = "30s"
 }
