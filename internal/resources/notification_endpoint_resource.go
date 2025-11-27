@@ -171,7 +171,7 @@ type NotificationEndpointResponse struct {
 	Username        *string           `json:"username"`
 	Password        *string           `json:"password"`
 	Method          string            `json:"method"`
-	AuthMethod      string            `json:"auth_method"`
+	AuthMethod      string            `json:"authMethod"`
 	Headers         map[string]string `json:"headers"`
 	ContentTemplate *string           `json:"contentTemplate"`
 	OrgID           string            `json:"orgID"`
@@ -335,9 +335,7 @@ func (r *NotificationEndpointResource) Read(ctx context.Context, req resource.Re
 	data.Type = types.StringValue(endpoint.Type)
 	data.URL = types.StringValue(endpoint.URL)
 	data.Method = types.StringValue(endpoint.Method)
-	if endpoint.AuthMethod != "" {
-		data.AuthMethod = types.StringValue(endpoint.AuthMethod)
-	}
+	data.AuthMethod = types.StringValue(endpoint.AuthMethod)
 
 	if len(endpoint.Headers) > 0 {
 		headers, diags := types.MapValueFrom(ctx, types.StringType, endpoint.Headers)
