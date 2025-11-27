@@ -111,10 +111,11 @@ func (r *NotificationRuleResource) Schema(ctx context.Context, req resource.Sche
 				Optional:            true,
 				MarkdownDescription: "Template for the notification message",
 			},
-			"status_rules": schema.ListNestedAttribute{
-				Optional:            true,
+		},
+		Blocks: map[string]schema.Block{
+			"status_rules": schema.ListNestedBlock{
 				MarkdownDescription: "Rules based on check status levels",
-				NestedObject: schema.NestedAttributeObject{
+				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
 						"current_level": schema.StringAttribute{
 							Required:            true,
@@ -127,10 +128,9 @@ func (r *NotificationRuleResource) Schema(ctx context.Context, req resource.Sche
 					},
 				},
 			},
-			"tag_rules": schema.ListNestedAttribute{
-				Optional:            true,
+			"tag_rules": schema.ListNestedBlock{
 				MarkdownDescription: "Rules based on tag values",
-				NestedObject: schema.NestedAttributeObject{
+				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
 						"key": schema.StringAttribute{
 							Required:            true,
@@ -264,11 +264,11 @@ func (r *NotificationRuleResource) Create(ctx context.Context, req resource.Crea
 	// Prepare request with values from model
 	ruleReq := NotificationRuleRequest{
 		Name:        data.Name.ValueString(),
-		Status:      data.Status.ValueString(), 
-		Type:        data.Type.ValueString(),  
+		Status:      data.Status.ValueString(),
+		Type:        data.Type.ValueString(),
 		EndpointID:  data.EndpointID.ValueString(),
 		OwnerID:     *currentUser.Id,
-		Every:       data.Every.ValueString(), 
+		Every:       data.Every.ValueString(),
 		OrgID:       *orgObj.Id,
 		StatusRules: []StatusRule{},
 	}
@@ -473,11 +473,11 @@ func (r *NotificationRuleResource) Update(ctx context.Context, req resource.Upda
 	ruleReq := NotificationRuleUpdateRequest{
 		ID:          data.ID.ValueString(),
 		Name:        data.Name.ValueString(),
-		Status:      data.Status.ValueString(), 
-		Type:        data.Type.ValueString(),  
+		Status:      data.Status.ValueString(),
+		Type:        data.Type.ValueString(),
 		EndpointID:  data.EndpointID.ValueString(),
 		OwnerID:     *currentUser.Id,
-		Every:       data.Every.ValueString(), 
+		Every:       data.Every.ValueString(),
 		OrgID:       *orgObj.Id,
 		StatusRules: []StatusRule{}, // Will be populated below if provided
 	}
