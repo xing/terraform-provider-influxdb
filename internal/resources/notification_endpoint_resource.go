@@ -36,19 +36,20 @@ type NotificationEndpointResource struct {
 
 // NotificationEndpointResourceModel describes the resource data model.
 type NotificationEndpointResourceModel struct {
-	ID          types.String `tfsdk:"id"`
-	Name        types.String `tfsdk:"name"`
-	Org         types.String `tfsdk:"org"`
-	Description types.String `tfsdk:"description"`
-	Status      types.String `tfsdk:"status"`
-	Type        types.String `tfsdk:"type"`
-	URL         types.String `tfsdk:"url"`
-	Token       types.String `tfsdk:"token"`
-	Username    types.String `tfsdk:"username"`
-	Password    types.String `tfsdk:"password"`
-	Method      types.String `tfsdk:"method"`
-	AuthMethod  types.String `tfsdk:"auth_method"`
-	Headers     types.Map    `tfsdk:"headers"`
+	ID              types.String `tfsdk:"id"`
+	Name            types.String `tfsdk:"name"`
+	Org             types.String `tfsdk:"org"`
+	Description     types.String `tfsdk:"description"`
+	Status          types.String `tfsdk:"status"`
+	Type            types.String `tfsdk:"type"`
+	URL             types.String `tfsdk:"url"`
+	Token           types.String `tfsdk:"token"`
+	Username        types.String `tfsdk:"username"`
+	Password        types.String `tfsdk:"password"`
+	Method          types.String `tfsdk:"method"`
+	AuthMethod      types.String `tfsdk:"auth_method"`
+	Headers         types.Map    `tfsdk:"headers"`
+	ContentTemplate types.String `tfsdk:"content_template"`
 }
 
 func (r *NotificationEndpointResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -78,8 +79,7 @@ func (r *NotificationEndpointResource) Schema(ctx context.Context, req resource.
 				MarkdownDescription: "Notification endpoint description",
 			},
 			"status": schema.StringAttribute{
-				Optional:            true,
-				Computed:            true,
+				Required:            true,
 				MarkdownDescription: "Status of the notification endpoint (active, inactive)",
 			},
 			"type": schema.StringAttribute{
@@ -105,19 +105,21 @@ func (r *NotificationEndpointResource) Schema(ctx context.Context, req resource.
 				MarkdownDescription: "Password for basic authentication",
 			},
 			"method": schema.StringAttribute{
-				Optional:            true,
-				Computed:            true,
+				Required:            true,
 				MarkdownDescription: "HTTP method to use (POST, PUT, etc.)",
 			},
 			"auth_method": schema.StringAttribute{
-				Optional:            true,
-				Computed:            true,
+				Required:            true,
 				MarkdownDescription: "Authentication method (none, basic, bearer)",
 			},
 			"headers": schema.MapAttribute{
 				Optional:            true,
 				ElementType:         types.StringType,
 				MarkdownDescription: "Additional headers to send with the request",
+			},
+			"content_template": schema.StringAttribute{
+				Optional:            true,
+				MarkdownDescription: "Template for the notification message content",
 			},
 		},
 	}
@@ -147,29 +149,32 @@ func (r *NotificationEndpointResource) Configure(ctx context.Context, req resour
 }
 
 type NotificationEndpointRequest struct {
-	Name       string `json:"name"`
-	Type       string `json:"type"`
-	URL        string `json:"url"`
-	Status     string `json:"status"`
-	Method     string `json:"method"`
-	AuthMethod string `json:"authMethod"`
-	OrgID      string `json:"orgID"`
+	Name            string            `json:"name"`
+	Type            string            `json:"type"`
+	URL             string            `json:"url"`
+	Status          string            `json:"status"`
+	Method          string            `json:"method"`
+	AuthMethod      string            `json:"authMethod"`
+	Headers         map[string]string `json:"headers,omitempty"`
+	ContentTemplate *string           `json:"contentTemplate,omitempty"`
+	OrgID           string            `json:"orgID"`
 }
 
 type NotificationEndpointResponse struct {
-	ID          string            `json:"id"`
-	Name        string            `json:"name"`
-	Description *string           `json:"description"`
-	Status      string            `json:"status"`
-	Type        string            `json:"type"`
-	URL         string            `json:"url"`
-	Token       *string           `json:"token"`
-	Username    *string           `json:"username"`
-	Password    *string           `json:"password"`
-	Method      string            `json:"method"`
-	AuthMethod  string            `json:"auth_method"`
-	Headers     map[string]string `json:"headers"`
-	OrgID       string            `json:"orgID"`
+	ID              string            `json:"id"`
+	Name            string            `json:"name"`
+	Description     *string           `json:"description"`
+	Status          string            `json:"status"`
+	Type            string            `json:"type"`
+	URL             string            `json:"url"`
+	Token           *string           `json:"token"`
+	Username        *string           `json:"username"`
+	Password        *string           `json:"password"`
+	Method          string            `json:"method"`
+	AuthMethod      string            `json:"auth_method"`
+	Headers         map[string]string `json:"headers"`
+	ContentTemplate *string           `json:"contentTemplate"`
+	OrgID           string            `json:"orgID"`
 }
 
 func (r *NotificationEndpointResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -198,10 +203,27 @@ func (r *NotificationEndpointResource) Create(ctx context.Context, req resource.
 		Name:       data.Name.ValueString(),
 		Type:       data.Type.ValueString(),
 		URL:        data.URL.ValueString(),
-		Status:     "active",
-		Method:     "POST",
-		AuthMethod: "none",
+		Status:     data.Status.ValueString(),
+		Method:     data.Method.ValueString(),
+		AuthMethod: data.AuthMethod.ValueString(),
 		OrgID:      *orgObj.Id,
+	}
+
+	// Add headers if provided
+	if !data.Headers.IsNull() {
+		headers := make(map[string]string)
+		diags := data.Headers.ElementsAs(ctx, &headers, false)
+		if diags.HasError() {
+			resp.Diagnostics.Append(diags...)
+			return
+		}
+		endpointReq.Headers = headers
+	}
+
+	// Add content template if provided
+	if !data.ContentTemplate.IsNull() {
+		template := data.ContentTemplate.ValueString()
+		endpointReq.ContentTemplate = &template
 	}
 
 	// Make HTTP request
@@ -326,6 +348,10 @@ func (r *NotificationEndpointResource) Read(ctx context.Context, req resource.Re
 		data.Headers = headers
 	}
 
+	if endpoint.ContentTemplate != nil {
+		data.ContentTemplate = types.StringValue(*endpoint.ContentTemplate)
+	}
+
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
@@ -356,21 +382,27 @@ func (r *NotificationEndpointResource) Update(ctx context.Context, req resource.
 		Name:       data.Name.ValueString(),
 		Type:       data.Type.ValueString(),
 		URL:        data.URL.ValueString(),
-		Status:     "active", // Default to active
-		Method:     "POST",   // Default method
-		AuthMethod: "none",   // Default auth method
+		Status:     data.Status.ValueString(),
+		Method:     data.Method.ValueString(),
+		AuthMethod: data.AuthMethod.ValueString(),
 		OrgID:      *orgObj.Id,
 	}
 
-	// Override with user-provided values if specified
-	if !data.Status.IsNull() {
-		endpointReq.Status = data.Status.ValueString()
+	// Add headers if provided
+	if !data.Headers.IsNull() {
+		headers := make(map[string]string)
+		diags := data.Headers.ElementsAs(ctx, &headers, false)
+		if diags.HasError() {
+			resp.Diagnostics.Append(diags...)
+			return
+		}
+		endpointReq.Headers = headers
 	}
-	if !data.Method.IsNull() {
-		endpointReq.Method = data.Method.ValueString()
-	}
-	if !data.AuthMethod.IsNull() {
-		endpointReq.AuthMethod = data.AuthMethod.ValueString()
+
+	// Add content template if provided
+	if !data.ContentTemplate.IsNull() {
+		template := data.ContentTemplate.ValueString()
+		endpointReq.ContentTemplate = &template
 	}
 
 	// Make HTTP request
@@ -380,7 +412,7 @@ func (r *NotificationEndpointResource) Update(ctx context.Context, req resource.
 		return
 	}
 
-	httpReq, err := http.NewRequest("PATCH", fmt.Sprintf("%s/api/v2/notificationEndpoints/%s", r.serverURL, data.ID.ValueString()), bytes.NewBuffer(jsonData))
+	httpReq, err := http.NewRequest("PUT", fmt.Sprintf("%s/api/v2/notificationEndpoints/%s", r.serverURL, data.ID.ValueString()), bytes.NewBuffer(jsonData))
 	if err != nil {
 		resp.Diagnostics.AddError("[UPDATE STAGE] Request Error", fmt.Sprintf("Unable to create HTTP request: %s", err))
 		return

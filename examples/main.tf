@@ -136,35 +136,44 @@ resource "influxdb_check" "critical_memory_usage" {
   }
 }
 
-# Example HTTP notification endpoint (no authentication required)
-resource "influxdb_notification_endpoint" "webhook_endpoint" {
-  name = "terraform-webhook-endpoint"
-  type = "http"
-  url  = "https://api.example.com/webhooks/influx"
-  status           = "active"
-  # token and auth_method are optional - omit them for endpoints that don't require auth
+
+# Microsoft Teams notification endpoint
+resource "influxdb_notification_endpoint" "teams_webhook" {
+  name   = "microsoft-teams-webhook"
+  type   = "http"
+  url    = ""
+  status = "active"
+  headers = {
+    "Content-Type" = "application/json"
+  }
+  content_template = "{\"text\": \"🔔 InfluxDB Alert: Check $${r._check_name} is $${r._level} - Value: $${r._value}\"}"
+  auth_method= "none"
+  method = "POST"
 }
 
-# Example notification rule for high CPU alerts to webhook
-resource "influxdb_notification_rule" "cpu_alert_rule" {
-  name             = "terraform-cpu-alert"
-  description      = "Alert when CPU usage goes from OK to WARN or CRIT"
-  endpoint_id      = influxdb_notification_endpoint.webhook_endpoint.id
-  message_template = "🚨 CPU Alert: $${r._check_name} is $${r._level} - Usage: $${r._value}%"
-  status           = "active"
-  type             = "http"
-  every            = "10m"
-  offset           = "0s"
-}
-
-# Example notification rule for memory alerts to webhook
-resource "influxdb_notification_rule" "memory_alert_rule" {
-  name             = "terraform-memory-alert"
-  description      = "Critical memory usage notifications"
-  endpoint_id      = influxdb_notification_endpoint.webhook_endpoint.id
-  message_template = "Memory Critical: $${r._check_name} on $${r.host} - $${r._value}% used"
-  status           = "active"
-  type             = "http"
-  every            = "5m"
-  offset           = "30s"
+# Notification rule that monitors all checks and sends to Teams  
+resource "influxdb_notification_rule" "teams_cpu_alert" {
+  name        = "teams-cpu-alert"
+  description = "Sends alerts to Microsoft Teams for all check statuses"
+  endpoint_id = influxdb_notification_endpoint.teams_webhook.id
+  status      = "active"
+  type        = "http"
+  every       = "1m"
+  offset      = "0s"
+  
+  status_rules {
+    current_level = "OK"
+  }
+  
+  status_rules {
+    current_level = "INFO"  
+  }
+  
+  status_rules {
+    current_level = "WARN"
+  }
+  
+  status_rules {
+    current_level = "CRIT"
+  }
 }

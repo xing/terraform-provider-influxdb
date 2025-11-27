@@ -36,18 +36,17 @@ type NotificationRuleResource struct {
 
 // NotificationRuleResourceModel describes the resource data model.
 type NotificationRuleResourceModel struct {
-	ID              types.String      `tfsdk:"id"`
-	Name            types.String      `tfsdk:"name"`
-	Org             types.String      `tfsdk:"org"`
-	Description     types.String      `tfsdk:"description"`
-	Status          types.String      `tfsdk:"status"`
-	Type            types.String      `tfsdk:"type"`
-	EndpointID      types.String      `tfsdk:"endpoint_id"`
-	Every           types.String      `tfsdk:"every"`
-	Offset          types.String      `tfsdk:"offset"`
-	MessageTemplate types.String      `tfsdk:"message_template"`
-	StatusRules     []StatusRuleModel `tfsdk:"status_rules"`
-	TagRules        []TagRuleModel    `tfsdk:"tag_rules"`
+	ID          types.String      `tfsdk:"id"`
+	Name        types.String      `tfsdk:"name"`
+	Org         types.String      `tfsdk:"org"`
+	Description types.String      `tfsdk:"description"`
+	Status      types.String      `tfsdk:"status"`
+	Type        types.String      `tfsdk:"type"`
+	EndpointID  types.String      `tfsdk:"endpoint_id"`
+	Every       types.String      `tfsdk:"every"`
+	Offset      types.String      `tfsdk:"offset"`
+	StatusRules []StatusRuleModel `tfsdk:"status_rules"`
+	TagRules    []TagRuleModel    `tfsdk:"tag_rules"`
 }
 
 type StatusRuleModel struct {
@@ -106,10 +105,6 @@ func (r *NotificationRuleResource) Schema(ctx context.Context, req resource.Sche
 			"offset": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: "Offset duration before checking",
-			},
-			"message_template": schema.StringAttribute{
-				Optional:            true,
-				MarkdownDescription: "Template for the notification message",
 			},
 		},
 		Blocks: map[string]schema.Block{
@@ -201,34 +196,32 @@ type NotificationRuleRequest struct {
 }
 
 type NotificationRuleUpdateRequest struct {
-	ID              string       `json:"id"`
-	Name            string       `json:"name"`
-	Description     *string      `json:"description,omitempty"`
-	Status          string       `json:"status"`
-	Type            string       `json:"type"`
-	EndpointID      string       `json:"endpointID"`
-	OwnerID         string       `json:"ownerID"`
-	Every           string       `json:"every"`
-	Offset          *string      `json:"offset,omitempty"`
-	MessageTemplate *string      `json:"messageTemplate,omitempty"`
-	StatusRules     []StatusRule `json:"statusRules"`
-	TagRules        []TagRule    `json:"tagRules,omitempty"`
-	OrgID           string       `json:"orgID"`
+	ID          string       `json:"id"`
+	Name        string       `json:"name"`
+	Description *string      `json:"description,omitempty"`
+	Status      string       `json:"status"`
+	Type        string       `json:"type"`
+	EndpointID  string       `json:"endpointID"`
+	OwnerID     string       `json:"ownerID"`
+	Every       string       `json:"every"`
+	Offset      *string      `json:"offset,omitempty"`
+	StatusRules []StatusRule `json:"statusRules"`
+	TagRules    []TagRule    `json:"tagRules,omitempty"`
+	OrgID       string       `json:"orgID"`
 }
 
 type NotificationRuleResponse struct {
-	ID              string       `json:"id"`
-	Name            string       `json:"name"`
-	Description     *string      `json:"description"`
-	Status          string       `json:"status"`
-	Type            string       `json:"type"`
-	EndpointID      string       `json:"endpointID"`
-	Every           *string      `json:"every"`
-	Offset          *string      `json:"offset"`
-	MessageTemplate *string      `json:"messageTemplate"`
-	StatusRules     []StatusRule `json:"statusRules"`
-	TagRules        []TagRule    `json:"tagRules"`
-	OrgID           string       `json:"orgID"`
+	ID          string       `json:"id"`
+	Name        string       `json:"name"`
+	Description *string      `json:"description"`
+	Status      string       `json:"status"`
+	Type        string       `json:"type"`
+	EndpointID  string       `json:"endpointID"`
+	Every       *string      `json:"every"`
+	Offset      *string      `json:"offset"`
+	StatusRules []StatusRule `json:"statusRules"`
+	TagRules    []TagRule    `json:"tagRules"`
+	OrgID       string       `json:"orgID"`
 }
 
 func (r *NotificationRuleResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -392,9 +385,6 @@ func (r *NotificationRuleResource) Read(ctx context.Context, req resource.ReadRe
 	if rule.Offset != nil {
 		data.Offset = types.StringValue(*rule.Offset)
 	}
-	if rule.MessageTemplate != nil {
-		data.MessageTemplate = types.StringValue(*rule.MessageTemplate)
-	}
 
 	// Convert status rules
 	if len(rule.StatusRules) > 0 {
@@ -494,11 +484,6 @@ func (r *NotificationRuleResource) Update(ctx context.Context, req resource.Upda
 	if !data.Offset.IsNull() {
 		offset := data.Offset.ValueString()
 		ruleReq.Offset = &offset
-	}
-
-	if !data.MessageTemplate.IsNull() {
-		template := data.MessageTemplate.ValueString()
-		ruleReq.MessageTemplate = &template
 	}
 
 	// Convert status rules
