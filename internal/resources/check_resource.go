@@ -373,14 +373,7 @@ func (r *CheckResource) Create(ctx context.Context, req resource.CreateRequest, 
 
 	// Set computed fields from API response
 	r.setComputedFields(&data, &createdCheck)
-
-	// Resolve organization ID to name for consistency
-	org, err = orgsAPI.FindOrganizationByID(ctx, createdCheck.OrgID)
-	if err != nil {
-		resp.Diagnostics.AddError("Create - Client Error", fmt.Sprintf("Unable to find organization with ID '%s', got error: %s", createdCheck.OrgID, err))
-		return
-	}
-	data.Org = types.StringValue(org.Name)
+	data.Org = types.StringValue(*org.Id)
 
 	// Save data into Terraform state
 	setDiags := resp.State.Set(ctx, &data)
@@ -457,7 +450,7 @@ func (r *CheckResource) Update(ctx context.Context, req resource.UpdateRequest, 
 		},
 		Status:     data.Status.ValueString(),
 		Every:      data.Every.ValueString(),
-		Offset:     data.Offset.ValueString(), 
+		Offset:     data.Offset.ValueString(),
 		Type:       data.Type.ValueString(),
 		Thresholds: make([]CheckThreshold, len(data.Thresholds)),
 	}
@@ -502,6 +495,7 @@ func (r *CheckResource) Update(ctx context.Context, req resource.UpdateRequest, 
 
 	// Update data from API response
 	r.setComputedFields(&data, &updatedCheck)
+	data.Org = types.StringValue(updatedCheck.OrgID)
 
 	updateSetDiags := resp.State.Set(ctx, &data)
 	resp.Diagnostics.Append(updateSetDiags...)

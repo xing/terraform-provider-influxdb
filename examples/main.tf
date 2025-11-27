@@ -92,7 +92,7 @@ resource "influxdb_check" "critical_memory_usage" {
 
   thresholds {
     type       = "greater"
-    value      = 90
+    value      = 71
     level      = "CRIT"
     all_values = false
   }
