@@ -122,17 +122,15 @@ func (r *CheckResource) Schema(ctx context.Context, req resource.SchemaRequest, 
 				MarkdownDescription: "Flux query to execute for the check",
 			},
 			"status": schema.StringAttribute{
-				Optional:            true,
-				Computed:            true,
-				MarkdownDescription: "Check status (active or inactive). Defaults to active.",
+				Required:            true,
+				MarkdownDescription: "Check status (active or inactive).",
 			},
 			"every": schema.StringAttribute{
 				Required:            true,
 				MarkdownDescription: "Duration between check executions (e.g., '1m', '5m', '1h')",
 			},
 			"offset": schema.StringAttribute{
-				Optional:            true,
-				Computed:            true,
+				Required:            true,
 				MarkdownDescription: "Optional offset for check execution timing. Defaults to '0s'.",
 			},
 			"status_message_template": schema.StringAttribute{
@@ -324,9 +322,9 @@ func (r *CheckResource) Create(ctx context.Context, req resource.CreateRequest, 
 		Query: CheckQuery{
 			Text: data.Query.ValueString(),
 		},
-		Status:     "active",
+		Status:     data.Status.ValueString(),
 		Every:      data.Every.ValueString(),
-		Offset:     "0s",
+		Offset:     data.Offset.ValueString(),
 		Type:       data.Type.ValueString(),
 		Thresholds: make([]CheckThreshold, len(data.Thresholds)),
 	}
@@ -373,10 +371,18 @@ func (r *CheckResource) Create(ctx context.Context, req resource.CreateRequest, 
 		return
 	}
 
-	// Save data into Terraform state
-	data.Org = types.StringValue(orgName) // Keep the original organization name/identifier that was used in config
+	// Set computed fields from API response
 	r.setComputedFields(&data, &createdCheck)
 
+	// Resolve organization ID to name for consistency
+	org, err = orgsAPI.FindOrganizationByID(ctx, createdCheck.OrgID)
+	if err != nil {
+		resp.Diagnostics.AddError("Create - Client Error", fmt.Sprintf("Unable to find organization with ID '%s', got error: %s", createdCheck.OrgID, err))
+		return
+	}
+	data.Org = types.StringValue(org.Name)
+
+	// Save data into Terraform state
 	setDiags := resp.State.Set(ctx, &data)
 	resp.Diagnostics.Append(setDiags...)
 }
@@ -423,6 +429,7 @@ func (r *CheckResource) Read(ctx context.Context, req resource.ReadRequest, resp
 
 func (r *CheckResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var data CheckResourceModel
+	var state CheckResourceModel
 
 	// Read Terraform plan data into the model
 	diags := req.Plan.Get(ctx, &data)
@@ -430,6 +437,16 @@ func (r *CheckResource) Update(ctx context.Context, req resource.UpdateRequest, 
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	// Read current state to get the ID
+	stateDiags := req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(stateDiags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Use the ID from state
+	data.ID = state.ID
 
 	// Prepare check payload for update
 	checkPayload := CheckAPI{
@@ -440,7 +457,7 @@ func (r *CheckResource) Update(ctx context.Context, req resource.UpdateRequest, 
 		},
 		Status:     data.Status.ValueString(),
 		Every:      data.Every.ValueString(),
-		Offset:     "0s", // Default offset
+		Offset:     data.Offset.ValueString(), 
 		Type:       data.Type.ValueString(),
 		Thresholds: make([]CheckThreshold, len(data.Thresholds)),
 	}

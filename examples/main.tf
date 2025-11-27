@@ -79,19 +79,20 @@ resource "influxdb_check" "critical_memory_usage" {
   description             = "Critical memory usage alert"
   query                   = <<-EOT
     from(bucket: "terraform-example-bucket")
-      |> range(start: -10m)
+      |> range(start: -1m)
       |> filter(fn: (r) => r._measurement == "memory")
       |> filter(fn: (r) => r._field == "used_percent")
-      |> aggregateWindow(every: 5m, fn: max, createEmpty: false)
+      |> aggregateWindow(every: 1m, fn: max, createEmpty: false)
   EOT
   every                   = "1m"
+  offset                  = "0s"
   status_message_template = "Memory usage is critical: $${r._value}%"
   status                  = "active"
   type                    = "threshold"
 
   thresholds {
     type       = "greater"
-    value      = 95.0
+    value      = 90
     level      = "CRIT"
     all_values = false
   }
@@ -102,7 +103,6 @@ resource "influxdb_check" "critical_memory_usage" {
 resource "influxdb_notification_endpoint" "teams_webhook" {
   name   = "microsoft-teams-webhook"
   type   = "http"
-  url    = ""
   status = "active"
   headers = {
     "Content-Type" = "application/json"
