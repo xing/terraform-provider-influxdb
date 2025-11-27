@@ -270,6 +270,20 @@ func (r *NotificationRuleResource) Create(ctx context.Context, req resource.Crea
 	offset := data.Offset.ValueString()
 	ruleReq.Offset = &offset
 
+	// Convert status rules
+	if len(data.StatusRules) > 0 {
+		statusRules := make([]StatusRule, len(data.StatusRules))
+		for i, rule := range data.StatusRules {
+			statusRules[i] = StatusRule{
+				CurrentLevel: rule.CurrentLevel.ValueString(),
+			}
+			if !rule.PreviousLevel.IsNull() {
+				statusRules[i].PreviousLevel = rule.PreviousLevel.ValueString()
+			}
+		}
+		ruleReq.StatusRules = statusRules
+	}
+
 	// Make HTTP request
 	jsonData, err := json.Marshal(ruleReq)
 	if err != nil {
