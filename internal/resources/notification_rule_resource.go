@@ -101,11 +101,13 @@ func (r *NotificationRuleResource) Schema(ctx context.Context, req resource.Sche
 			},
 			"every": schema.StringAttribute{
 				Optional:            true,
-				MarkdownDescription: "Check frequency (e.g., '1m', '5m')",
+				Computed:            true,
+				MarkdownDescription: "Check frequency (e.g., '1m', '5m'). Defaults to '10m' if not specified.",
 			},
 			"offset": schema.StringAttribute{
 				Optional:            true,
-				MarkdownDescription: "Offset duration before checking",
+				Computed:            true,
+				MarkdownDescription: "Offset duration before checking. Defaults to '0s' if not specified.",
 			},
 			"message_template": schema.StringAttribute{
 				Optional:            true,
@@ -269,7 +271,7 @@ func (r *NotificationRuleResource) Create(ctx context.Context, req resource.Crea
 
 	ruleReq := NotificationRuleRequest{
 		Name:        data.Name.ValueString(),
-		Status:      data.Status.ValueString(), 
+		Status:      data.Status.ValueString(),
 		Type:        data.Type.ValueString(),
 		EndpointID:  data.EndpointID.ValueString(),
 		OwnerID:     *currentUser.Id,
@@ -585,6 +587,7 @@ func (r *NotificationRuleResource) Update(ctx context.Context, req resource.Upda
 	data.Name = types.StringValue(rule.Name)
 	data.Status = types.StringValue(rule.Status)
 	data.Type = types.StringValue(rule.Type)
+	data.Org = types.StringValue(org) // Ensure org is properly set
 	if rule.Every != nil {
 		data.Every = types.StringValue(*rule.Every)
 	}
