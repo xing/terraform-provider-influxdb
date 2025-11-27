@@ -41,6 +41,7 @@ type NotificationRuleResourceModel struct {
 	Org             types.String      `tfsdk:"org"`
 	Description     types.String      `tfsdk:"description"`
 	Status          types.String      `tfsdk:"status"`
+	Type            types.String      `tfsdk:"type"`
 	EndpointID      types.String      `tfsdk:"endpoint_id"`
 	Every           types.String      `tfsdk:"every"`
 	Offset          types.String      `tfsdk:"offset"`
@@ -87,9 +88,12 @@ func (r *NotificationRuleResource) Schema(ctx context.Context, req resource.Sche
 				MarkdownDescription: "Notification rule description",
 			},
 			"status": schema.StringAttribute{
-				Optional:            true,
-				Computed:            true,
+				Required:            true,
 				MarkdownDescription: "Status of the notification rule (active, inactive)",
+			},
+			"type": schema.StringAttribute{
+				Required:            true,
+				MarkdownDescription: "Type of the notification rule (http, slack, pagerduty)",
 			},
 			"endpoint_id": schema.StringAttribute{
 				Required:            true,
@@ -196,6 +200,22 @@ type NotificationRuleRequest struct {
 	OrgID           string       `json:"orgID"`
 }
 
+type NotificationRuleUpdateRequest struct {
+	ID              string       `json:"id"`
+	Name            string       `json:"name"`
+	Description     *string      `json:"description,omitempty"`
+	Status          string       `json:"status"`
+	Type            string       `json:"type"`
+	EndpointID      string       `json:"endpointID"`
+	OwnerID         string       `json:"ownerID"`
+	Every           string       `json:"every"`
+	Offset          *string      `json:"offset,omitempty"`
+	MessageTemplate *string      `json:"messageTemplate,omitempty"`
+	StatusRules     []StatusRule `json:"statusRules"`
+	TagRules        []TagRule    `json:"tagRules,omitempty"`
+	OrgID           string       `json:"orgID"`
+}
+
 type NotificationRuleResponse struct {
 	ID              string       `json:"id"`
 	Name            string       `json:"name"`
@@ -241,16 +261,21 @@ func (r *NotificationRuleResource) Create(ctx context.Context, req resource.Crea
 		return
 	}
 
-	// Prepare request with required fields
+	// Prepare request with values from model
+	every := "10m" // Default schedule
+	if !data.Every.IsNull() && data.Every.ValueString() != "" {
+		every = data.Every.ValueString()
+	}
+
 	ruleReq := NotificationRuleRequest{
 		Name:        data.Name.ValueString(),
-		Status:      "active",
-		Type:        "http",
+		Status:      data.Status.ValueString(), 
+		Type:        data.Type.ValueString(),
 		EndpointID:  data.EndpointID.ValueString(),
 		OwnerID:     *currentUser.Id,
-		Every:       "10m", // Default schedule
+		Every:       every,
 		OrgID:       *orgObj.Id,
-		StatusRules: []StatusRule{{CurrentLevel: "CRIT"}}, // Default status rule
+		StatusRules: []StatusRule{}, // Will be populated below if provided
 	}
 
 	// Set offset
@@ -302,6 +327,7 @@ func (r *NotificationRuleResource) Create(ctx context.Context, req resource.Crea
 	data.ID = types.StringValue(rule.ID)
 	data.Org = types.StringValue(org)
 	data.Status = types.StringValue(rule.Status)
+	data.Type = types.StringValue(rule.Type)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
@@ -356,11 +382,13 @@ func (r *NotificationRuleResource) Read(ctx context.Context, req resource.ReadRe
 	}
 
 	// Update data with response
+	data.ID = types.StringValue(rule.ID) // Ensure ID is preserved
 	data.Name = types.StringValue(rule.Name)
 	if rule.Description != nil {
 		data.Description = types.StringValue(*rule.Description)
 	}
 	data.Status = types.StringValue(rule.Status)
+	data.Type = types.StringValue(rule.Type)
 	data.EndpointID = types.StringValue(rule.EndpointID)
 
 	if rule.Every != nil {
@@ -405,12 +433,25 @@ func (r *NotificationRuleResource) Read(ctx context.Context, req resource.ReadRe
 
 func (r *NotificationRuleResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var data NotificationRuleResourceModel
+	var state NotificationRuleResourceModel
 
+	// Get the planned changes
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
+	// Get the current state to preserve ID and other computed fields
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	// Use ID from current state, not from plan
+	if state.ID.IsNull() || state.ID.ValueString() == "" {
+		resp.Diagnostics.AddError("[UPDATE STAGE] Missing ID", "Cannot update notification rule without an ID from current state")
+		return
+	}
+
+	// Use the ID from the state
+	data.ID = state.ID
 
 	org := r.org
 	if !data.Org.IsNull() {
@@ -433,21 +474,22 @@ func (r *NotificationRuleResource) Update(ctx context.Context, req resource.Upda
 		return
 	}
 
-	// Prepare request
+	// Prepare request for PUT update (requires ID)
 	every := "10m"
 	if !data.Every.IsNull() {
 		every = data.Every.ValueString()
 	}
 
-	ruleReq := NotificationRuleRequest{
+	ruleReq := NotificationRuleUpdateRequest{
+		ID:          data.ID.ValueString(),
 		Name:        data.Name.ValueString(),
-		Status:      data.Status.ValueString(),
-		Type:        "http",
+		Status:      data.Status.ValueString(), // Required field from model
+		Type:        data.Type.ValueString(),   // Required field from model
 		EndpointID:  data.EndpointID.ValueString(),
 		OwnerID:     *currentUser.Id,
 		Every:       every,
 		OrgID:       *orgObj.Id,
-		StatusRules: []StatusRule{{CurrentLevel: "CRIT"}}, // Default status rule
+		StatusRules: []StatusRule{}, // Will be populated below if provided
 	}
 
 	// Set offset
@@ -503,9 +545,10 @@ func (r *NotificationRuleResource) Update(ctx context.Context, req resource.Upda
 		return
 	}
 
-	httpReq, err := http.NewRequest("PATCH", fmt.Sprintf("%s/api/v2/notificationRules/%s", r.serverURL, data.ID.ValueString()), bytes.NewBuffer(jsonData))
+	updateURL := fmt.Sprintf("%s/api/v2/notificationRules/%s", r.serverURL, data.ID.ValueString())
+	httpReq, err := http.NewRequest("PUT", updateURL, bytes.NewBuffer(jsonData))
 	if err != nil {
-		resp.Diagnostics.AddError("Request Error", fmt.Sprintf("Unable to create HTTP request: %s", err))
+		resp.Diagnostics.AddError("Request Error", fmt.Sprintf("Unable to create HTTP request for URL %s: %s", updateURL, err))
 		return
 	}
 
@@ -513,7 +556,8 @@ func (r *NotificationRuleResource) Update(ctx context.Context, req resource.Upda
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Accept", "application/json")
 
-	httpResp, err := r.httpClient.Do(httpReq)
+	// Use default client like our working curl command
+	httpResp, err := http.DefaultClient.Do(httpReq)
 	if err != nil {
 		resp.Diagnostics.AddError("HTTP Error", fmt.Sprintf("Unable to update notification rule: %s", err))
 		return
@@ -527,18 +571,24 @@ func (r *NotificationRuleResource) Update(ctx context.Context, req resource.Upda
 	}
 
 	if httpResp.StatusCode != http.StatusOK {
-		resp.Diagnostics.AddError("[UPDATE STAGE] API Error", fmt.Sprintf("InfluxDB API returned status %d: %s", httpResp.StatusCode, string(body)))
+		resp.Diagnostics.AddError("[UPDATE STAGE] API Error", fmt.Sprintf("InfluxDB API returned status %d for URL %s with request body: %s\nResponse: %s", httpResp.StatusCode, updateURL, string(jsonData), string(body)))
 		return
 	}
 
 	var rule NotificationRuleResponse
 	if err := json.Unmarshal(body, &rule); err != nil {
-		resp.Diagnostics.AddError("Deserialization Error", fmt.Sprintf("Unable to parse notification rule response: %s", err))
+		resp.Diagnostics.AddError("[UPDATE STAGE] Deserialization Error", fmt.Sprintf("Unable to parse notification rule response: %s\nResponse body: %s", err, string(body)))
 		return
 	}
 
-	// Update data with response
+	// Update data with response - preserve all current values and update what changed
+	data.Name = types.StringValue(rule.Name)
 	data.Status = types.StringValue(rule.Status)
+	data.Type = types.StringValue(rule.Type)
+	if rule.Every != nil {
+		data.Every = types.StringValue(*rule.Every)
+	}
+	// Keep other fields as they are since they shouldn't change during update
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
