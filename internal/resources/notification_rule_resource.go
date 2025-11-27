@@ -473,11 +473,11 @@ func (r *NotificationRuleResource) Update(ctx context.Context, req resource.Upda
 	ruleReq := NotificationRuleUpdateRequest{
 		ID:          data.ID.ValueString(),
 		Name:        data.Name.ValueString(),
-		Status:      data.Status.ValueString(), // Required field from model
-		Type:        data.Type.ValueString(),   // Required field from model
+		Status:      data.Status.ValueString(), 
+		Type:        data.Type.ValueString(),  
 		EndpointID:  data.EndpointID.ValueString(),
 		OwnerID:     *currentUser.Id,
-		Every:       data.Every.ValueString(), // Required field from model
+		Every:       data.Every.ValueString(), 
 		OrgID:       *orgObj.Id,
 		StatusRules: []StatusRule{}, // Will be populated below if provided
 	}
